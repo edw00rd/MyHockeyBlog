@@ -37,6 +37,16 @@ export default {
       }
     }
 
+    if (url.pathname.startsWith("/api/")) {
+      return json(
+        {
+          error: "Not found",
+          path: url.pathname
+        },
+        404
+      );
+    }
+
     return env.ASSETS.fetch(request);
   }
 };
