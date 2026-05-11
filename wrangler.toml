@@ -7,3 +7,8 @@ directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hockey_blog_db"
+database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
