@@ -11,4 +11,4 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "hockey_blog_db"
-database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
+database_id = "fb31940a-1370-47cf-be6e-15e385dab763"
