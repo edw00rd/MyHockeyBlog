@@ -11,6 +11,15 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/version") {
+      return json({
+        ok: true,
+        version: "d1-test-001",
+        deployed_check: "If you can see this, Cloudflare is running the new code.",
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     if (url.pathname === "/api/db-test") {
       try {
         const result = await env.DB
