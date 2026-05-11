@@ -1,0 +1,13 @@
+{
+  "name": "my-hockey-blog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Free Cloudflare Workers starter for a hockey progress blog.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}

@@ -1,0 +1,8 @@
+name = "my-hockey-blog"
+main = "src/index.js"
+compatibility_date = "2026-05-11"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"

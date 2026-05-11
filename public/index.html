@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A public-facing hockey progress blog for tracking ice sessions, games, videos, stats, and community feedback."
+    />
+    <meta property="og:title" content="MyHockeyBlog" />
+    <meta property="og:description" content="Track hockey progress, posts, games, stats, videos, and feedback." />
+    <meta property="og:type" content="website" />
+    <title>MyHockeyBlog</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Main navigation">
+        <a class="brand" href="#top" aria-label="MyHockeyBlog home">
+          <span class="brand-mark">🏒</span>
+          <span>MyHockeyBlog</span>
+        </a>
+        <div class="nav-links">
+          <a href="#posts">Posts</a>
+          <a href="#calendar">Calendar</a>
+          <a href="#stats">Stats</a>
+          <a href="/api/health" target="_blank" rel="noreferrer">API Check</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero section-shell">
+        <div class="hero-copy">
+          <p class="eyebrow">Free infrastructure MVP</p>
+          <h1>Track hockey progress in public. Control the details in private.</h1>
+          <p>
+            This starter app is running as a Cloudflare Worker with static assets. Right now it uses local browser
+            storage for demo data. Next, we wire in D1 for the database, R2 for media, and real auth.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#new-post">Create demo post</a>
+            <a class="button secondary" href="#calendar">Log ice time</a>
+          </div>
+        </div>
+
+        <aside class="profile-card" aria-label="Player profile summary">
+          <div class="avatar">00</div>
+          <div>
+            <p class="muted small">Public profile</p>
+            <h2 id="profile-name">New Hockey Player</h2>
+            <p id="profile-bio">Wing • Adult league • Building speed, hands, and hockey IQ.</p>
+          </div>
+          <div class="profile-metrics">
+            <div>
+              <strong id="metric-posts">0</strong>
+              <span>public posts</span>
+            </div>
+            <div>
+              <strong id="metric-views">0</strong>
+              <span>video views</span>
+            </div>
+            <div>
+              <strong id="metric-events">0</strong>
+              <span>ice events</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section-shell status-grid" aria-label="Infrastructure status">
+        <article class="status-card">
+          <span class="status-dot good"></span>
+          <h3>Frontend</h3>
+          <p>Static files are served from Cloudflare's edge.</p>
+        </article>
+        <article class="status-card">
+          <span class="status-dot good"></span>
+          <h3>Worker API</h3>
+          <p><code>/api/health</code> and <code>/api/version</code> are ready.</p>
+        </article>
+        <article class="status-card">
+          <span class="status-dot pending"></span>
+          <h3>Database</h3>
+          <p>D1 comes next for real posts, comments, calendar events, and stats.</p>
+        </article>
+        <article class="status-card">
+          <span class="status-dot pending"></span>
+          <h3>Media</h3>
+          <p>R2 comes next for profile photos, clips, and post images.</p>
+        </article>
+      </section>
+
+      <section id="new-post" class="section-shell two-column">
+        <div>
+          <p class="eyebrow">Demo post composer</p>
+          <h2>Create a hockey progress update</h2>
+          <p class="muted">
+            For now, posts save only to your browser. This is intentional: we are proving the UI and deployment before
+            adding the real database.
+          </p>
+        </div>
+        <form id="post-form" class="panel form-panel">
+          <label>
+            Post title
+            <input name="title" type="text" placeholder="Example: First clean crossover drill session" required />
+          </label>
+          <label>
+            Update
+            <textarea name="body" rows="5" placeholder="What did you work on? What felt better? What needs reps?" required></textarea>
+          </label>
+          <div class="form-row">
+            <label>
+              Visibility
+              <select name="visibility">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+              </select>
+            </label>
+            <label>
+              Comments
+              <select name="comments">
+                <option value="allow">Allow</option>
+                <option value="disallow">Disallow</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Video URL or note
+            <input name="video" type="text" placeholder="YouTube link, R2 object later, or practice clip note" />
+          </label>
+          <button class="button primary" type="submit">Save demo post</button>
+        </form>
+      </section>
+
+      <section id="posts" class="section-shell">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Progress feed</p>
+            <h2>Posts</h2>
+          </div>
+          <button id="reset-demo" class="button ghost" type="button">Reset demo data</button>
+        </div>
+        <div id="post-list" class="post-list" aria-live="polite"></div>
+      </section>
+
+      <section id="calendar" class="section-shell two-column">
+        <div>
+          <p class="eyebrow">Calendar MVP</p>
+          <h2>Log hockey activity</h2>
+          <p class="muted">
+            Calendar events will eventually become real database records with optional game stats attached.
+          </p>
+          <form id="event-form" class="panel form-panel compact">
+            <label>
+              Date
+              <input name="date" type="date" required />
+            </label>
+            <label>
+              Event type
+              <select name="type">
+                <option>Ice session</option>
+                <option>Game</option>
+                <option>Stick & puck</option>
+                <option>Dryland training</option>
+              </select>
+            </label>
+            <label>
+              Notes
+              <input name="notes" type="text" placeholder="Example: worked on outside edges" />
+            </label>
+            <div class="form-row stats-row">
+              <label>
+                Goals
+                <input name="goals" type="number" min="0" value="0" />
+              </label>
+              <label>
+                Assists
+                <input name="assists" type="number" min="0" value="0" />
+              </label>
+              <label>
+                Blocked shots
+                <input name="blocks" type="number" min="0" value="0" />
+              </label>
+            </div>
+            <button class="button primary" type="submit">Add event</button>
+          </form>
+        </div>
+        <div class="panel">
+          <h3>Upcoming / logged events</h3>
+          <div id="event-list" class="event-list"></div>
+        </div>
+      </section>
+
+      <section id="stats" class="section-shell stats-section">
+        <p class="eyebrow">Stats snapshot</p>
+        <h2>Prototype numbers</h2>
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>Total goals</span>
+            <strong id="stat-goals">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Total assists</span>
+            <strong id="stat-assists">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Blocked shots</span>
+            <strong id="stat-blocks">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Ice sessions</span>
+            <strong id="stat-sessions">0</strong>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Built for free-first deployment on Cloudflare Workers. Next milestone: D1 schema.</p>
+    </footer>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
