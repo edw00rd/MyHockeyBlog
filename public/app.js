@@ -30,11 +30,14 @@ function formatDate(value) {
   }
 }
 
-async function fetchJson(url) {
+async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: {
-      accept: "application/json"
-    }
+      accept: "application/json",
+      "content-type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
   });
 
   const data = await response.json();
@@ -55,7 +58,8 @@ async function loadHomepage() {
 
     renderProfile(profileData);
     renderPosts(postsData.posts || []);
-    disableOldDemoForms();
+    renderEventsPlaceholder();
+    wireForms();
   } catch (error) {
     renderError(error);
   }
@@ -133,28 +137,92 @@ function renderPosts(posts) {
   }
 }
 
-function disableOldDemoForms() {
+function renderEventsPlaceholder() {
+  const container = $("#event-list");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="empty-state">
+      Calendar writes are coming next. Game stats are already stored in D1 for the demo profile.
+    </div>
+  `;
+}
+
+function wireForms() {
   const postForm = $("#post-form");
   const eventForm = $("#event-form");
   const resetButton = $("#reset-demo");
 
-  if (postForm) {
-    postForm.addEventListener("submit", (event) => {
+  if (postForm && !postForm.dataset.wired) {
+    postForm.dataset.wired = "true";
+
+    postForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      alert("Posting to D1 is coming next. Right now the homepage is reading real D1 data.");
+
+      const submitButton = postForm.querySelector("button[type='submit']");
+      const form = new FormData(postForm);
+
+      const title = String(form.get("title") || "").trim();
+      const body = String(form.get("body") || "").trim();
+      const visibility = String(form.get("visibility") || "public").trim();
+      const comments = String(form.get("comments") || "allow").trim();
+
+      if (!title || !body) {
+        alert("Please enter both a title and an update.");
+        return;
+      }
+
+      try {
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Saving to D1...";
+        }
+
+        await fetchJson("/api/posts", {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            body,
+            post_type: "progress",
+            visibility,
+            comments_enabled: comments === "allow"
+          })
+        });
+
+        postForm.reset();
+
+        await loadHomepage();
+
+        document.querySelector("#posts")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      } catch (error) {
+        alert(`Could not save post: ${error.message}`);
+        console.error(error);
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = "Save post";
+        }
+      }
     });
   }
 
-  if (eventForm) {
+  if (eventForm && !eventForm.dataset.wired) {
+    eventForm.dataset.wired = "true";
+
     eventForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      alert("Calendar writes are coming next. Right now the homepage is reading real D1 profile and post data.");
+      alert("Calendar event creation is coming next. Posts are the first D1 write feature.");
     });
   }
 
-  if (resetButton) {
+  if (resetButton && !resetButton.dataset.wired) {
+    resetButton.dataset.wired = "true";
+
     resetButton.addEventListener("click", () => {
-      alert("Local demo reset is disabled. The app is now reading from D1.");
+      alert("Local demo reset is disabled. Posts are now stored in D1.");
     });
   }
 }
