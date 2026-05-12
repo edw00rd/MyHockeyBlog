@@ -201,7 +201,8 @@ function wireForms() {
             comments_enabled: comments === "allow",
             tags
           })
-
+        });
+        
         postForm.reset();
 
         await loadHomepage();
