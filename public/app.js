@@ -1,157 +1,13 @@
-const STORAGE_KEY = "my_hockey_blog_demo_v1";
-
-const seedState = {
-  profile: {
-    name: "New Hockey Player",
-    bio: "Wing • Adult league • Building speed, hands, and hockey IQ."
-  },
-  posts: [
-    {
-      id: crypto.randomUUID(),
-      title: "First public progress update",
-      body: "This is the free infrastructure MVP. Next up: connect the database, add auth, and turn posts/comments into real records.",
-      visibility: "public",
-      comments: "allow",
-      video: "Demo clip placeholder",
-      views: 3,
-      score: 2,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "Private notes example",
-      body: "Private posts should show to the owner only once auth exists. For now this is just a UI flag.",
-      visibility: "private",
-      comments: "disallow",
-      video: "",
-      views: 0,
-      score: 0,
-      createdAt: new Date().toISOString()
-    }
-  ],
-  events: [
-    {
-      id: crypto.randomUUID(),
-      date: new Date().toISOString().slice(0, 10),
-      type: "Ice session",
-      notes: "Edge work and skating form",
-      goals: 0,
-      assists: 0,
-      blocks: 0
-    }
-  ]
-};
+const DEMO_USERNAME = "demo-skater";
 
 const $ = (selector) => document.querySelector(selector);
 
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return structuredClone(seedState);
-
-  try {
-    return JSON.parse(saved);
-  } catch {
-    return structuredClone(seedState);
-  }
+function setText(selector, value) {
+  const element = $(selector);
+  if (element) element.textContent = value;
 }
 
-function saveState(nextState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-}
-
-let state = loadState();
-
-function formatDate(value) {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  }).format(new Date(`${value}T12:00:00`));
-}
-
-function updateMetrics() {
-  const publicPosts = state.posts.filter((post) => post.visibility === "public").length;
-  const views = state.posts.reduce((sum, post) => sum + Number(post.views || 0), 0);
-  const goals = state.events.reduce((sum, event) => sum + Number(event.goals || 0), 0);
-  const assists = state.events.reduce((sum, event) => sum + Number(event.assists || 0), 0);
-  const blocks = state.events.reduce((sum, event) => sum + Number(event.blocks || 0), 0);
-
-  $("#profile-name").textContent = state.profile.name;
-  $("#profile-bio").textContent = state.profile.bio;
-  $("#metric-posts").textContent = publicPosts;
-  $("#metric-views").textContent = views;
-  $("#metric-events").textContent = state.events.length;
-  $("#stat-goals").textContent = goals;
-  $("#stat-assists").textContent = assists;
-  $("#stat-blocks").textContent = blocks;
-  $("#stat-sessions").textContent = state.events.length;
-}
-
-function renderPosts() {
-  const container = $("#post-list");
-  container.innerHTML = "";
-
-  if (state.posts.length === 0) {
-    container.innerHTML = `<div class="empty-state">No posts yet. Create your first hockey update above.</div>`;
-    return;
-  }
-
-  for (const post of state.posts) {
-    const card = document.createElement("article");
-    card.className = "post-card";
-    card.innerHTML = `
-      <div class="post-meta">
-        <span class="badge ${post.visibility}">${post.visibility}</span>
-        <span class="badge">comments: ${post.comments === "allow" ? "on" : "off"}</span>
-        <span class="badge">views: ${Number(post.views || 0)}</span>
-        <span class="badge">score: ${Number(post.score || 0)}</span>
-      </div>
-      <h3>${escapeHtml(post.title)}</h3>
-      <p class="muted">${escapeHtml(post.body)}</p>
-      ${post.video ? `<p><strong>Video:</strong> <span class="muted">${escapeHtml(post.video)}</span></p>` : ""}
-      <div class="post-actions">
-        <button class="inline-button" data-action="view" data-id="${post.id}">+ video view</button>
-        <button class="inline-button" data-action="upvote" data-id="${post.id}">▲ upvote</button>
-        <button class="inline-button" data-action="downvote" data-id="${post.id}">▼ downvote</button>
-      </div>
-    `;
-    container.appendChild(card);
-  }
-}
-
-function renderEvents() {
-  const container = $("#event-list");
-  container.innerHTML = "";
-
-  if (state.events.length === 0) {
-    container.innerHTML = `<div class="empty-state">No hockey activity logged yet.</div>`;
-    return;
-  }
-
-  const sortedEvents = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
-
-  for (const event of sortedEvents) {
-    const row = document.createElement("div");
-    row.className = "event-item";
-    row.innerHTML = `
-      <div class="event-main">
-        <strong>${formatDate(event.date)} • ${escapeHtml(event.type)}</strong>
-        <span>${event.notes ? escapeHtml(event.notes) : "No notes yet"}</span>
-      </div>
-      <span class="badge">G ${Number(event.goals || 0)} / A ${Number(event.assists || 0)} / BS ${Number(event.blocks || 0)}</span>
-    `;
-    container.appendChild(row);
-  }
-}
-
-function renderAll() {
-  updateMetrics();
-  renderPosts();
-  renderEvents();
-  saveState(state);
-}
-
-function escapeHtml(value) {
+function escapeHtml(value = "") {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -160,63 +16,162 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-$("#post-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+function formatDate(value) {
+  if (!value) return "Unknown date";
 
-  state.posts.unshift({
-    id: crypto.randomUUID(),
-    title: form.get("title"),
-    body: form.get("body"),
-    visibility: form.get("visibility"),
-    comments: form.get("comments"),
-    video: form.get("video"),
-    views: 0,
-    score: 0,
-    createdAt: new Date().toISOString()
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/json"
+    }
   });
 
-  event.currentTarget.reset();
-  renderAll();
-  document.querySelector("#posts").scrollIntoView({ behavior: "smooth", block: "start" });
-});
+  const data = await response.json();
 
-$("#event-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || data.message || `Request failed: ${url}`);
+  }
 
-  state.events.push({
-    id: crypto.randomUUID(),
-    date: form.get("date"),
-    type: form.get("type"),
-    notes: form.get("notes"),
-    goals: Number(form.get("goals") || 0),
-    assists: Number(form.get("assists") || 0),
-    blocks: Number(form.get("blocks") || 0)
-  });
+  return data;
+}
 
-  event.currentTarget.reset();
-  renderAll();
-});
+async function loadHomepage() {
+  try {
+    const [profileData, postsData] = await Promise.all([
+      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}`),
+      fetchJson("/api/posts")
+    ]);
 
-$("#post-list").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+    renderProfile(profileData);
+    renderPosts(postsData.posts || []);
+    disableOldDemoForms();
+  } catch (error) {
+    renderError(error);
+  }
+}
 
-  const post = state.posts.find((item) => item.id === button.dataset.id);
-  if (!post) return;
+function renderProfile(data) {
+  const profile = data.profile;
+  const stats = data.stats || {};
+  const posts = data.posts || [];
 
-  if (button.dataset.action === "view") post.views = Number(post.views || 0) + 1;
-  if (button.dataset.action === "upvote") post.score = Number(post.score || 0) + 1;
-  if (button.dataset.action === "downvote") post.score = Number(post.score || 0) - 1;
+  setText("#profile-name", profile.display_name || profile.username || "Hockey Player");
 
-  renderAll();
-});
+  const bioParts = [
+    profile.position,
+    profile.skill_level,
+    profile.team_name
+  ].filter(Boolean);
 
-$("#reset-demo").addEventListener("click", () => {
-  localStorage.removeItem(STORAGE_KEY);
-  state = structuredClone(seedState);
-  renderAll();
-});
+  const bioLine = bioParts.length ? bioParts.join(" • ") : profile.bio;
 
-renderAll();
+  setText("#profile-bio", bioLine || "Hockey progress profile powered by D1.");
+
+  setText("#metric-posts", posts.length);
+  setText("#metric-views", "0");
+  setText("#metric-events", stats.games_played ?? 0);
+
+  setText("#stat-goals", stats.goals ?? 0);
+  setText("#stat-assists", stats.assists ?? 0);
+  setText("#stat-blocks", stats.blocked_shots ?? 0);
+  setText("#stat-sessions", stats.games_played ?? 0);
+}
+
+function renderPosts(posts) {
+  const container = $("#post-list");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  if (!posts.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        No public posts found yet.
+      </div>
+    `;
+    return;
+  }
+
+  for (const post of posts) {
+    const card = document.createElement("article");
+    card.className = "post-card";
+
+    const commentsStatus = post.comments_enabled ? "on" : "off";
+    const author = post.author_display_name || post.author_username || "Unknown skater";
+
+    card.innerHTML = `
+      <div class="post-meta">
+        <span class="badge ${escapeHtml(post.visibility)}">${escapeHtml(post.visibility)}</span>
+        <span class="badge">${escapeHtml(post.post_type || "post")}</span>
+        <span class="badge">comments: ${commentsStatus}</span>
+        <span class="badge">${formatDate(post.published_at || post.created_at)}</span>
+      </div>
+
+      <h3>${escapeHtml(post.title || "Untitled post")}</h3>
+
+      <p class="muted">${escapeHtml(post.body || "")}</p>
+
+      <p class="muted small">
+        Posted by ${escapeHtml(author)}
+        ${post.author_position ? ` • ${escapeHtml(post.author_position)}` : ""}
+        ${post.author_jersey_number ? ` • #${escapeHtml(post.author_jersey_number)}` : ""}
+      </p>
+    `;
+
+    container.appendChild(card);
+  }
+}
+
+function disableOldDemoForms() {
+  const postForm = $("#post-form");
+  const eventForm = $("#event-form");
+  const resetButton = $("#reset-demo");
+
+  if (postForm) {
+    postForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      alert("Posting to D1 is coming next. Right now the homepage is reading real D1 data.");
+    });
+  }
+
+  if (eventForm) {
+    eventForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      alert("Calendar writes are coming next. Right now the homepage is reading real D1 profile and post data.");
+    });
+  }
+
+  if (resetButton) {
+    resetButton.addEventListener("click", () => {
+      alert("Local demo reset is disabled. The app is now reading from D1.");
+    });
+  }
+}
+
+function renderError(error) {
+  const container = $("#post-list");
+
+  if (container) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <strong>Could not load D1 data.</strong><br />
+        ${escapeHtml(error.message)}
+      </div>
+    `;
+  }
+
+  console.error(error);
+}
+
+loadHomepage();
