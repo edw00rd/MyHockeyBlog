@@ -243,6 +243,7 @@ async function createPost(request, env) {
     const postType = String(body.post_type || "progress").trim();
     const visibility = String(body.visibility || "public").trim();
     const commentsEnabled = body.comments_enabled === false ? 0 : 1;
+    const rawTags = body.tags || "";
 
     // Temporary demo author until real auth/login exists.
     const demoUserId = "user_demo_001";
@@ -309,6 +310,8 @@ async function createPost(request, env) {
       )
       .run();
 
+    const savedTags = await savePostTags(env, postId, rawTags, demoUserId, now);
+    
     return json(
       {
         ok: true,
@@ -320,6 +323,7 @@ async function createPost(request, env) {
           post_type: safePostType,
           visibility: safeVisibility,
           comments_enabled: commentsEnabled === 1,
+          tags: savedTags,
           published_at: now
         }
       },
