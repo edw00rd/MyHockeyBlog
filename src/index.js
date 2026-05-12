@@ -6,7 +6,8 @@ export default {
       return json({
         ok: true,
         service: "MyHockeyBlog",
-        message: "Worker API is alive.",
+        message: "NEW SOURCE CODE IS DEPLOYED",
+        build_marker: "d1-diagnostic-2026-05-12",
         timestamp: new Date().toISOString()
       });
     }
@@ -14,12 +15,12 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "d1-test-001",
-        deployed_check: "If you can see this, Cloudflare is running the new code.",
+        version: "d1-diagnostic-2026-05-12",
+        message: "This is the updated src/index.js from GitHub main.",
         timestamp: new Date().toISOString()
       });
     }
-    
+
     if (url.pathname === "/api/db-test") {
       try {
         const result = await env.DB
@@ -49,7 +50,8 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       return json(
         {
-          error: "Not found",
+          ok: false,
+          error: "API route not found",
           path: url.pathname
         },
         404
@@ -64,7 +66,8 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
-      "content-type": "application/json; charset=utf-8"
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store"
     }
   });
 }
