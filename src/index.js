@@ -15,8 +15,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.3.1",
-        message: "Seed route removed. Demo D1 API routes are active.",
+        version: "0.4.1",
+        message: "POST /api/posts added. Posts can now be saved to D1.",
         timestamp: new Date().toISOString()
       });
     }
@@ -49,6 +49,10 @@ export default {
 
     if (url.pathname === "/api/posts" && method === "GET") {
       return getPosts(env);
+    }
+
+    if (url.pathname === "/api/posts" && method === "POST") {
+      return createPost(request, env);
     }
 
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
@@ -223,6 +227,109 @@ async function getProfileByUsername(env, username) {
       {
         ok: false,
         message: "Failed to load profile.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function createPost(request, env) {
+  try {
+    const body = await request.json();
+
+    const title = String(body.title || "").trim();
+    const content = String(body.body || "").trim();
+    const postType = String(body.post_type || "progress").trim();
+    const visibility = String(body.visibility || "public").trim();
+    const commentsEnabled = body.comments_enabled === false ? 0 : 1;
+
+    // Temporary demo author until real auth/login exists.
+    const demoUserId = "user_demo_001";
+
+    if (!title) {
+      return json(
+        {
+          ok: false,
+          error: "Post title is required."
+        },
+        400
+      );
+    }
+
+    if (!content) {
+      return json(
+        {
+          ok: false,
+          error: "Post body is required."
+        },
+        400
+      );
+    }
+
+    const allowedTypes = ["progress", "game", "practice", "gear", "training", "general"];
+    const allowedVisibility = ["public", "private", "unlisted"];
+
+    const safePostType = allowedTypes.includes(postType) ? postType : "progress";
+    const safeVisibility = allowedVisibility.includes(visibility) ? visibility : "public";
+
+    const now = new Date().toISOString();
+    const postId = crypto.randomUUID();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO posts (
+        id,
+        author_user_id,
+        title,
+        body,
+        post_type,
+        visibility,
+        comments_enabled,
+        status,
+        published_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        postId,
+        demoUserId,
+        title,
+        content,
+        safePostType,
+        safeVisibility,
+        commentsEnabled,
+        "published",
+        now,
+        now,
+        now
+      )
+      .run();
+
+    return json(
+      {
+        ok: true,
+        message: "Post created successfully.",
+        post: {
+          id: postId,
+          title,
+          body: content,
+          post_type: safePostType,
+          visibility: safeVisibility,
+          comments_enabled: commentsEnabled === 1,
+          published_at: now
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to create post.",
         error: error.message
       },
       500
