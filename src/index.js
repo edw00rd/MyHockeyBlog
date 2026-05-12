@@ -15,8 +15,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.3.0",
-        message: "Demo D1 API routes added.",
+        version: "0.3.1",
+        message: "Seed route removed. Demo D1 API routes are active.",
         timestamp: new Date().toISOString()
       });
     }
@@ -47,13 +47,10 @@ export default {
       }
     }
 
-    // Get recent public posts.
     if (url.pathname === "/api/posts" && method === "GET") {
       return getPosts(env);
     }
 
-    // Get a public profile by username.
-    // Example: /api/profile/demo-skater
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
         url.pathname.replace("/api/profile/", "").trim()
