@@ -113,6 +113,10 @@ function renderPosts(posts) {
 
     const commentsStatus = post.comments_enabled ? "on" : "off";
     const author = post.author_display_name || post.author_username || "Unknown skater";
+    const tagList = String(post.tags || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
 
     card.innerHTML = `
       <div class="post-meta">
@@ -125,6 +129,13 @@ function renderPosts(posts) {
       <h3>${escapeHtml(post.title || "Untitled post")}</h3>
 
       <p class="muted">${escapeHtml(post.body || "")}</p>
+      ${
+        tagList.length
+          ? `<div class="post-meta">${tagList
+              .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
+              .join("")}</div>`
+          : ""
+      }
 
       <p class="muted small">
         Posted by ${escapeHtml(author)}
@@ -166,6 +177,8 @@ function wireForms() {
       const body = String(form.get("body") || "").trim();
       const visibility = String(form.get("visibility") || "public").trim();
       const comments = String(form.get("comments") || "allow").trim();
+      const tags = String(form.get("tags") || "").trim();
+      
 
       if (!title || !body) {
         alert("Please enter both a title and an update.");
@@ -185,9 +198,9 @@ function wireForms() {
             body,
             post_type: "progress",
             visibility,
-            comments_enabled: comments === "allow"
+            comments_enabled: comments === "allow",
+            tags
           })
-        });
 
         postForm.reset();
 
