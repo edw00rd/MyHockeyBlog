@@ -15,8 +15,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.4.1",
-        message: "POST /api/posts added. Posts can now be saved to D1.",
+        version: "0.5.0",
+        message: "Post tags added. Posts can now save and display tags from D1",
         timestamp: new Date().toISOString()
       });
     }
@@ -107,11 +107,15 @@ async function getPosts(env) {
         profiles.username AS author_username,
         profiles.position AS author_position,
         profiles.jersey_number AS author_jersey_number
+        COALESCE(GROUP_CONCAT(tags.name), '') AS tags
       FROM posts
       JOIN users ON users.id = posts.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
+      LEFT JOIN post_tags ON post_tags.post_id = posts.id
+      LEFT JOIN tags ON tags.id = post_tags.tag_id
       WHERE posts.visibility = 'public'
         AND posts.status = 'published'
+      GROUP BY posts.id
       ORDER BY posts.created_at DESC
       LIMIT 25
       `
@@ -188,10 +192,14 @@ async function getProfileByUsername(env, username) {
         posts.status,
         posts.published_at,
         posts.created_at
+        COALESCE(GROUP_CONCAT(tags.name), '') AS tags
       FROM posts
+      LEFT JOIN post_tags ON post_tags.post_id = posts.id
+      LEFT JOIN tags ON tags.id = post_tags.tag_id
       WHERE posts.author_user_id = ?
         AND posts.visibility = 'public'
         AND posts.status = 'published'
+      GROUP BY posts.id
       ORDER BY posts.created_at DESC
       LIMIT 10
       `
@@ -339,6 +347,81 @@ async function createPost(request, env) {
       500
     );
   }
+}
+
+function parseTags(rawTags) {
+  if (!rawTags) return [];
+
+  const value = Array.isArray(rawTags) ? rawTags.join(",") : String(rawTags);
+
+  const tags = value
+    .split(",")
+    .map((tag) => tag.trim())
+    .map((tag) => tag.replace(/^#/, ""))
+    .filter(Boolean)
+    .map((tag) => tag.slice(0, 32));
+
+  return [...new Set(tags)].slice(0, 10);
+}
+
+function slugifyTag(tag) {
+  return tag
+    .toLowerCase()
+    .trim()
+    .replace(/^#/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+async function savePostTags(env, postId, rawTags, createdByUserId, now) {
+  const tags = parseTags(rawTags);
+  const savedTags = [];
+
+  for (const tagName of tags) {
+    const slug = slugifyTag(tagName);
+
+    if (!slug) continue;
+
+    const tagId = `tag_${slug}`;
+    const postTagId = `post_tag_${postId}_${slug}`;
+
+    await env.DB.prepare(
+      `
+      INSERT OR IGNORE INTO tags (
+        id,
+        name,
+        slug,
+        created_by_user_id,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(tagId, tagName, slug, createdByUserId, now)
+      .run();
+
+    await env.DB.prepare(
+      `
+      INSERT OR IGNORE INTO post_tags (
+        id,
+        post_id,
+        tag_id,
+        created_at
+      )
+      VALUES (?, ?, ?, ?)
+      `
+    )
+      .bind(postTagId, postId, tagId, now)
+      .run();
+
+    savedTags.push({
+      name: tagName,
+      slug
+    });
+  }
+
+  return savedTags;
 }
 
 function json(data, status = 200) {
