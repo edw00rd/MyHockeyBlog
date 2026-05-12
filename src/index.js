@@ -1,7 +1,3 @@
-import { SCHEMA_SQL } from "./schema.js";
-
-const INIT_TOKEN = "setup-hockey-db-2026";
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -10,8 +6,7 @@ export default {
       return json({
         ok: true,
         service: "MyHockeyBlog",
-        message: "NEW SOURCE CODE IS DEPLOYED",
-        build_marker: "browser-d1-installer-001",
+        message: "Worker API is alive.",
         timestamp: new Date().toISOString()
       });
     }
@@ -19,8 +14,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "browser-d1-installer-001",
-        message: "This is the updated src/index.js from GitHub main.",
+        version: "0.2.0",
+        message: "D1 schema initialized. Ready for app API development.",
         timestamp: new Date().toISOString()
       });
     }
@@ -49,85 +44,6 @@ export default {
           500
         );
       }
-    }
-
-    if (url.pathname === "/api/admin/init-db") {
-      const token = url.searchParams.get("token");
-
-      if (token !== INIT_TOKEN) {
-        return json(
-          {
-            ok: false,
-            error: "Unauthorized"
-          },
-          401
-        );
-      }
-
-      const executed = [];
-
-      try {
-        for (let i = 0; i < SCHEMA_SQL.length; i++) {
-          const statement = SCHEMA_SQL[i];
-
-          const result = await env.DB
-            .prepare(statement)
-            .run();
-
-          executed.push({
-            index: i + 1,
-            success: result.success === true,
-            meta: result.meta || null
-          });
-        }
-
-        const tables = await env.DB
-          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-          .all();
-
-        return json({
-          ok: true,
-          service: "MyHockeyBlog",
-          message: "Database schema initialized successfully.",
-          statements_executed: executed.length,
-          tables: tables.results || []
-        });
-      } catch (error) {
-        return json(
-          {
-            ok: false,
-            service: "MyHockeyBlog",
-            message: "Database schema initialization failed.",
-            error: error.message,
-            statements_executed_before_failure: executed.length,
-            last_successful_statement: executed.length ? executed[executed.length - 1] : null
-          },
-          500
-        );
-      }
-    }
-
-    if (url.pathname === "/api/admin/tables") {
-      const token = url.searchParams.get("token");
-
-      if (token !== INIT_TOKEN) {
-        return json(
-          {
-            ok: false,
-            error: "Unauthorized"
-          },
-          401
-        );
-      }
-
-      const tables = await env.DB
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-        .all();
-
-      return json({
-        ok: true,
-        tables: tables.results || []
-      });
     }
 
     if (url.pathname.startsWith("/api/")) {
