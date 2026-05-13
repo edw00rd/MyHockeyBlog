@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.7.0",
-        message: "Comment voting added. Comments now support D1-backed upvotes and downvotes.",
+        version: "0.8.0",
+        message: "Chirp Watch added. Posts and comments can now be chirped.",
         timestamp: new Date().toISOString()
       });
     }
@@ -50,6 +50,10 @@ export default {
 
     if (commentVoteMatch && method === "POST") {
       return voteOnComment(request, env, commentVoteMatch[1]);
+    }
+
+    if (url.pathname === "/api/chirps" && method === "POST") {
+      return createChirp(request, env);
     }
     
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
@@ -145,6 +149,25 @@ async function getPosts(env) {
         ) AS tags,
         (
           SELECT COUNT(*)
+          FROM content_chirps
+          WHERE content_chirps.content_type = 'post'
+            AND content_chirps.content_id = posts.id
+            AND content_chirps.status = 'active'
+        ) AS chirp_count,
+        COALESCE(
+          (
+            SELECT 1
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.chirped_by_user_id = ?
+              AND content_chirps.status = 'active'
+            LIMIT 1
+          ),
+          0
+        ) AS user_chirped
+        (
+          SELECT COUNT(*)
           FROM comments
           WHERE comments.post_id = posts.id
             AND comments.status = 'visible'
@@ -157,7 +180,9 @@ async function getPosts(env) {
       ORDER BY posts.created_at DESC
       LIMIT 25
       `
-    ).all();
+    )
+      .bind(DEMO_USER_ID)
+      .all();
 
     return json({
       ok: true,
@@ -330,7 +355,26 @@ async function getComments(env, postId) {
             LIMIT 1
           ),
           0
-        ) AS user_vote
+        ) AS user_vote,
+        (
+          SELECT COUNT(*)
+          FROM content_chirps
+          WHERE content_chirps.content_type = 'comment'
+            AND content_chirps.content_id = comments.id
+            AND content_chirps.status = 'active'
+        ) AS chirp_count,
+        COALESCE(
+          (
+            SELECT 1
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.chirped_by_user_id = ?
+              AND content_chirps.status = 'active'
+            LIMIT 1
+          ),
+          0
+        ) AS user_chirped
       FROM comments
       LEFT JOIN users ON users.id = comments.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
@@ -340,7 +384,7 @@ async function getComments(env, postId) {
       LIMIT 100
       `
     )
-      .bind(DEMO_USER_ID, postId)
+      .bind(DEMO_USER_ID, DEMO_USER_ID, postId)
       .all();
 
     return json({
@@ -632,6 +676,218 @@ async function voteOnComment(request, env, commentId) {
       500
     );
   }
+}
+
+async function createChirp(request, env) {
+  try {
+    const body = await readJsonBody(request);
+
+    const contentType = String(body.content_type || "").trim();
+    const contentId = String(body.content_id || "").trim();
+    const reason = String(body.reason || "other").trim();
+    const note = String(body.note || "").trim();
+
+    const allowedContentTypes = ["post", "comment"];
+    const allowedReasons = [
+      "too_personal",
+      "targeted_bullying",
+      "trash_talk_too_far",
+      "spam_trolling",
+      "other"
+    ];
+
+    if (!allowedContentTypes.includes(contentType)) {
+      return json(
+        {
+          ok: false,
+          error: "content_type must be 'post' or 'comment'."
+        },
+        400
+      );
+    }
+
+    if (!contentId) {
+      return json(
+        {
+          ok: false,
+          error: "content_id is required."
+        },
+        400
+      );
+    }
+
+    const safeReason = allowedReasons.includes(reason) ? reason : "other";
+    const safeNote = note.slice(0, 500);
+    const now = new Date().toISOString();
+
+    await ensureDemoAuthor(env, now);
+
+    const contentExists = await verifyChirpContentExists(env, contentType, contentId);
+
+    if (!contentExists) {
+      return json(
+        {
+          ok: false,
+          error: "Content not found."
+        },
+        404
+      );
+    }
+
+    const existing = await env.DB.prepare(
+      `
+      SELECT id, status
+      FROM content_chirps
+      WHERE content_type = ?
+        AND content_id = ?
+        AND chirped_by_user_id = ?
+      LIMIT 1
+      `
+    )
+      .bind(contentType, contentId, DEMO_USER_ID)
+      .first();
+
+    let userChirped = true;
+
+    if (existing && existing.status === "active") {
+      // Clicking Chirp again removes the user's chirp.
+      await env.DB.prepare(
+        `
+        UPDATE content_chirps
+        SET status = 'dismissed',
+            updated_at = ?
+        WHERE id = ?
+        `
+      )
+        .bind(now, existing.id)
+        .run();
+
+      userChirped = false;
+    } else if (existing) {
+      // Re-activate a previously dismissed chirp.
+      await env.DB.prepare(
+        `
+        UPDATE content_chirps
+        SET reason = ?,
+            note = ?,
+            status = 'active',
+            updated_at = ?
+        WHERE id = ?
+        `
+      )
+        .bind(safeReason, safeNote, now, existing.id)
+        .run();
+    } else {
+      await env.DB.prepare(
+        `
+        INSERT INTO content_chirps (
+          id,
+          content_type,
+          content_id,
+          chirped_by_user_id,
+          reason,
+          note,
+          status,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+        .bind(
+          crypto.randomUUID(),
+          contentType,
+          contentId,
+          DEMO_USER_ID,
+          safeReason,
+          safeNote,
+          "active",
+          now,
+          now
+        )
+        .run();
+    }
+
+    const countRow = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS chirp_count
+      FROM content_chirps
+      WHERE content_type = ?
+        AND content_id = ?
+        AND status = 'active'
+      `
+    )
+      .bind(contentType, contentId)
+      .first();
+
+    const chirpCount = Number(countRow?.chirp_count || 0);
+
+    return json({
+      ok: true,
+      message: userChirped ? "Content chirped." : "Chirp removed.",
+      content_type: contentType,
+      content_id: contentId,
+      chirp_count: chirpCount,
+      user_chirped: userChirped,
+      chirp_status: getChirpStatus(chirpCount)
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to chirp content.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function verifyChirpContentExists(env, contentType, contentId) {
+  if (contentType === "post") {
+    const post = await env.DB.prepare(
+      `
+      SELECT id
+      FROM posts
+      WHERE id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(contentId)
+      .first();
+
+    return Boolean(post);
+  }
+
+  if (contentType === "comment") {
+    const comment = await env.DB.prepare(
+      `
+      SELECT
+        comments.id
+      FROM comments
+      JOIN posts ON posts.id = comments.post_id
+      WHERE comments.id = ?
+        AND comments.status = 'visible'
+        AND posts.visibility = 'public'
+        AND posts.status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(contentId)
+      .first();
+
+    return Boolean(comment);
+  }
+
+  return false;
+}
+
+function getChirpStatus(chirpCount) {
+  if (chirpCount >= 5) return "sent_to_the_box";
+  if (chirpCount >= 3) return "chirp_watch";
+  return "normal";
 }
 
 async function getProfileByUsername(env, username) {
