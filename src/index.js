@@ -19,7 +19,7 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.10.1",
+        version: "0.10.2",
         message: "Chirp Profile context fixed.",
         timestamp: new Date().toISOString()
       });
@@ -870,6 +870,7 @@ async function createChirp(request, env) {
       )
         .bind(
           safeChirpType,
+          safeReason,
           safeNote,
           profile.helpful_score,
           profile.funny_score,
