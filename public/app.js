@@ -585,15 +585,11 @@ function getChirpAxisData(profile) {
 function getDominantChirpAxis(axes) {
   if (!axes.length) return null;
 
-  let dominant = axes[0];
-
-  for (const axis of axes) {
-    if (Number(axis.value || 0) > Number(dominant.value || 0)) {
-      dominant = axis;
-    }
-  }
-
-  return dominant;
+  return axes.reduce((dominant, axis) => {
+    return Number(axis.value || 0) > Number(dominant.value || 0)
+      ? axis
+      : dominant;
+  }, axes[0]);
 }
 
 function formatChirpScore(value) {
@@ -700,13 +696,7 @@ function renderChirpRadar(profile) {
 
   return `
     <div class="chirp-radar" aria-label="Chirp profile radar chart">
-        <svg
-          viewBox="0 0 ${size} ${size}"
-          width="120"
-          height="120"
-          role="img"
-          aria-hidden="true"
-        >
+      <svg viewBox="0 0 ${size} ${size}" role="img" aria-hidden="true">
         ${ringPolygons}
         ${axisLines}
         <polygon points="${polygonPoints}" class="chirp-shape" />
