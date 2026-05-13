@@ -541,37 +541,162 @@ function getChirpProfileLabel(profile) {
   return "👀 Chirp Watch";
 }
 
+function getChirpAxisData(profile) {
+  return [
+    {
+      label: "Tape-to-Tape",
+      value: Number(profile.helpful_score || 0)
+    },
+    {
+      label: "Laughs",
+      value: Number(profile.funny_score || 0)
+    },
+    {
+      label: "Heat",
+      value: Number(profile.heat_score || 0)
+    },
+    {
+      label: "Cheap Shot",
+      value: Number(profile.rude_score || 0)
+    },
+    {
+      label: "Head-Hunting",
+      value: Number(profile.targeted_score || 0)
+    },
+    {
+      label: "Gongshow",
+      value: Number(profile.spam_score || 0)
+    }
+  ];
+}
+
+function formatChirpScore(value) {
+  const score = Number(value || 0);
+  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+}
+
+function polarPoint(cx, cy, radius, angleDeg) {
+  const radians = ((angleDeg - 90) * Math.PI) / 180;
+
+  return {
+    x: cx + Math.cos(radians) * radius,
+    y: cy + Math.sin(radians) * radius
+  };
+}
+
+function renderChirpRadar(profile) {
+  const axes = getChirpAxisData(profile);
+  const chirpCount = Number(profile.chirp_count || 0);
+
+  if (chirpCount === 0) return "";
+
+  const size = 180;
+  const cx = 90;
+  const cy = 90;
+  const maxRadius = 62;
+  const ringLevels = [1, 2, 3, 4, 5];
+
+  const ringPolygons = ringLevels
+    .map((level) => {
+      const radius = (level / 5) * maxRadius;
+
+      const points = axes
+        .map((_, index) => {
+          const angle = (360 / axes.length) * index;
+          const point = polarPoint(cx, cy, radius, angle);
+          return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+        })
+        .join(" ");
+
+      return `<polygon points="${points}" class="chirp-ring" />`;
+    })
+    .join("");
+
+  const axisLines = axes
+    .map((_, index) => {
+      const angle = (360 / axes.length) * index;
+      const point = polarPoint(cx, cy, maxRadius, angle);
+
+      return `
+        <line
+          x1="${cx}"
+          y1="${cy}"
+          x2="${point.x.toFixed(1)}"
+          y2="${point.y.toFixed(1)}"
+          class="chirp-axis"
+        />
+      `;
+    })
+    .join("");
+
+  const polygonPoints = axes
+    .map((axis, index) => {
+      const angle = (360 / axes.length) * index;
+      const clampedValue = Math.max(0, Math.min(5, Number(axis.value || 0)));
+      const radius = (clampedValue / 5) * maxRadius;
+      const point = polarPoint(cx, cy, radius, angle);
+
+      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const nodeCircles = axes
+    .map((axis, index) => {
+      const angle = (360 / axes.length) * index;
+      const clampedValue = Math.max(0, Math.min(5, Number(axis.value || 0)));
+      const radius = (clampedValue / 5) * maxRadius;
+      const point = polarPoint(cx, cy, radius, angle);
+
+      return `
+        <circle
+          cx="${point.x.toFixed(1)}"
+          cy="${point.y.toFixed(1)}"
+          r="2.5"
+          class="chirp-node"
+        />
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="chirp-radar" aria-label="Chirp profile radar chart">
+      <svg viewBox="0 0 ${size} ${size}" role="img" aria-hidden="true">
+        ${ringPolygons}
+        ${axisLines}
+        <polygon points="${polygonPoints}" class="chirp-shape" />
+        ${nodeCircles}
+      </svg>
+    </div>
+  `;
+}
+
 function renderChirpProfile(profile) {
   const chirpCount = Number(profile.chirp_count || 0);
 
   if (chirpCount === 0) return "";
 
-  const scores = [
-    ["Tape-to-Tape", profile.helpful_score],
-    ["Laughs", profile.funny_score],
-    ["Heat", profile.heat_score],
-    ["Cheap Shot", profile.rude_score],
-    ["Head-Hunting", profile.targeted_score],
-    ["Gongshow", profile.spam_score]
-  ];
+  const axes = getChirpAxisData(profile);
 
   return `
     <div class="chirp-profile">
       <p class="muted small">
         <strong>Chirp Profile</strong> · ${chirpCount} chirp${chirpCount === 1 ? "" : "s"}
       </p>
-      <div class="chirp-profile-grid">
-        ${scores
-          .map(([label, value]) => {
-            const score = Number(value || 0);
 
-            return `
-              <span class="chirp-score">
-                ${escapeHtml(label)}: ${score}
-              </span>
-            `;
-          })
-          .join("")}
+      <div class="chirp-profile-visual">
+        ${renderChirpRadar(profile)}
+
+        <div class="chirp-profile-grid">
+          ${axes
+            .map((axis) => {
+              return `
+                <span class="chirp-score">
+                  <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
+                </span>
+              `;
+            })
+            .join("")}
+        </div>
       </div>
     </div>
   `;
