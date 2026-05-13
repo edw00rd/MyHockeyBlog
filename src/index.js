@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.10.2",
-        message: "Chirp Profile context fixed.",
+        version: "0.10.3",
+        message: "Chirp Profile scores now display for posts and comments.",
         timestamp: new Date().toISOString()
       });
     }
@@ -430,6 +430,7 @@ async function getComments(env, postId) {
         comments.updated_at,
         users.display_name AS author_display_name,
         profiles.username AS author_username,
+
         COALESCE(
           (
             SELECT comment_votes.vote_value
@@ -440,6 +441,7 @@ async function getComments(env, postId) {
           ),
           0
         ) AS user_vote,
+
         (
           SELECT COUNT(*)
           FROM content_chirps
@@ -447,6 +449,73 @@ async function getComments(env, postId) {
             AND content_chirps.content_id = comments.id
             AND content_chirps.status = 'active'
         ) AS chirp_count,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(helpful_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS helpful_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(funny_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS funny_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(heat_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS heat_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(rude_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS rude_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(targeted_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS targeted_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(spam_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'comment'
+              AND content_chirps.content_id = comments.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS spam_score,
+
         COALESCE(
           (
             SELECT 1
@@ -459,6 +528,7 @@ async function getComments(env, postId) {
           ),
           0
         ) AS user_chirped
+
       FROM comments
       LEFT JOIN users ON users.id = comments.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
