@@ -597,7 +597,7 @@ textarea:focus {
 
 @media (min-width: 720px) {
   .chirp-profile-visual {
-    grid-template-columns: 190px 1fr;
+    grid-template-columns: 130px 1fr;
   }
 }
 
@@ -608,9 +608,10 @@ textarea:focus {
 }
 
 .chirp-radar svg {
-  width: 180px;
-  height: 180px;
+  width: 100px;
+  height: 100px;
   overflow: visible;
+  flex: 0 0 auto;
 }
 
 .chirp-ring {
