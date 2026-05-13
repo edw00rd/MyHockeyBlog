@@ -677,3 +677,15 @@ textarea:focus {
   color: var(--text);
   margin-right: 0.2rem;
 }
+
+.chirp-score-axis {
+  border-color: var(--pill-color) !important;
+  color: var(--pill-color) !important;
+  box-shadow: 0 0 0 1px var(--pill-color) inset;
+  background: rgba(15, 23, 42, 0.72) !important;
+}
+
+.chirp-score-axis strong {
+  color: var(--pill-color) !important;
+}
+
