@@ -681,11 +681,27 @@ textarea:focus {
 .chirp-score-axis {
   border-color: var(--pill-color) !important;
   color: var(--pill-color) !important;
-  box-shadow: 0 0 0 1px var(--pill-color) inset;
-  background: rgba(15, 23, 42, 0.72) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pill-color) 70%, transparent) inset,
+    0 0 10px color-mix(in srgb, var(--pill-color) 18%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--pill-color) 16%, rgba(5, 12, 24, 0.92)),
+      rgba(5, 12, 24, 0.88)
+    ) !important;
+  text-transform: none;
+  font-weight: 800;
 }
 
 .chirp-score-axis strong {
   color: var(--pill-color) !important;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--pill-color) 35%, transparent);
 }
 
+.chirp-node-dominant {
+  fill: var(--node-color);
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 5px var(--node-color));
+}
