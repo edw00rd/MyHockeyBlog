@@ -45,6 +45,13 @@ export default {
     if (commentsMatch && method === "POST") {
       return createComment(request, env, commentsMatch[1]);
     }
+
+    const commentVoteMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/vote$/);
+
+    if (commentVoteMatch && method === "POST") {
+      return voteOnComment(request, env, commentVoteMatch[1]);
+    }
+    
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
         url.pathname.replace("/api/profile/", "").trim()
@@ -313,7 +320,17 @@ async function getComments(env, postId) {
         comments.created_at,
         comments.updated_at,
         users.display_name AS author_display_name,
-        profiles.username AS author_username
+        profiles.username AS author_username,
+        COALESCE(
+          (
+            SELECT comment_votes.vote_value
+            FROM comment_votes
+            WHERE comment_votes.comment_id = comments.id
+              AND comment_votes.voter_user_id = ?
+            LIMIT 1
+          ),
+          0
+        ) AS user_vote
       FROM comments
       LEFT JOIN users ON users.id = comments.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
@@ -323,7 +340,7 @@ async function getComments(env, postId) {
       LIMIT 100
       `
     )
-      .bind(postId)
+      .bind(DEMO_USER_ID, postId)
       .all();
 
     return json({
@@ -458,6 +475,158 @@ async function createComment(request, env, postId) {
       {
         ok: false,
         message: "Failed to create comment.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function voteOnComment(request, env, commentId) {
+  try {
+    const body = await readJsonBody(request);
+    const requestedVote = Number(body.vote_value);
+
+    if (![1, -1].includes(requestedVote)) {
+      return json(
+        {
+          ok: false,
+          error: "vote_value must be 1 for upvote or -1 for downvote."
+        },
+        400
+      );
+    }
+
+    const comment = await env.DB.prepare(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.status,
+        posts.visibility,
+        posts.status AS post_status
+      FROM comments
+      JOIN posts ON posts.id = comments.post_id
+      WHERE comments.id = ?
+      LIMIT 1
+      `
+    )
+      .bind(commentId)
+      .first();
+
+    if (!comment || comment.status !== "visible" || comment.visibility !== "public" || comment.post_status !== "published") {
+      return json(
+        {
+          ok: false,
+          error: "Comment not found."
+        },
+        404
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    await ensureDemoAuthor(env, now);
+
+    const existingVote = await env.DB.prepare(
+      `
+      SELECT id, vote_value
+      FROM comment_votes
+      WHERE comment_id = ?
+        AND voter_user_id = ?
+      LIMIT 1
+      `
+    )
+      .bind(commentId, DEMO_USER_ID)
+      .first();
+
+    let userVote = requestedVote;
+
+    if (existingVote && Number(existingVote.vote_value) === requestedVote) {
+      // Same vote clicked twice = remove vote.
+      await env.DB.prepare(
+        `
+        DELETE FROM comment_votes
+        WHERE id = ?
+        `
+      )
+        .bind(existingVote.id)
+        .run();
+
+      userVote = 0;
+    } else if (existingVote) {
+      // Switch upvote to downvote, or downvote to upvote.
+      await env.DB.prepare(
+        `
+        UPDATE comment_votes
+        SET vote_value = ?, updated_at = ?
+        WHERE id = ?
+        `
+      )
+        .bind(requestedVote, now, existingVote.id)
+        .run();
+    } else {
+      // New vote.
+      await env.DB.prepare(
+        `
+        INSERT INTO comment_votes (
+          id,
+          comment_id,
+          voter_user_id,
+          voter_fingerprint,
+          vote_value,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+        .bind(
+          crypto.randomUUID(),
+          commentId,
+          DEMO_USER_ID,
+          null,
+          requestedVote,
+          now,
+          now
+        )
+        .run();
+    }
+
+    const scoreRow = await env.DB.prepare(
+      `
+      SELECT COALESCE(SUM(vote_value), 0) AS score
+      FROM comment_votes
+      WHERE comment_id = ?
+      `
+    )
+      .bind(commentId)
+      .first();
+
+    const score = Number(scoreRow?.score || 0);
+
+    await env.DB.prepare(
+      `
+      UPDATE comments
+      SET score = ?, updated_at = ?
+      WHERE id = ?
+      `
+    )
+      .bind(score, now, commentId)
+      .run();
+
+    return json({
+      ok: true,
+      message: "Vote saved.",
+      comment_id: commentId,
+      score,
+      user_vote: userVote
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to vote on comment.",
         error: error.message
       },
       500
