@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.6.0",
-        message: "Comments API added. Posts now support D1-backed comments.",
+        version: "0.7.0",
+        message: "Comment voting added. Comments now support D1-backed upvotes and downvotes.",
         timestamp: new Date().toISOString()
       });
     }
