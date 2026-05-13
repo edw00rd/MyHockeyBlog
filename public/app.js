@@ -517,46 +517,48 @@ function getChirpStatusLabel(chirpCount) {
   return "";
 }
 
-function getChirpReason() {
+function getChirpType() {
   const choice = window.prompt(
     [
-      "Why are you chirping this?",
+      "What kind of chirp is this?",
       "",
-      "1 = Too personal",
-      "2 = Targeted / bullying",
-      "3 = Trash talk went too far",
-      "4 = Spam / trolling",
-      "5 = Other",
+      "1 = Good Chirp — funny hockey banter",
+      "2 = Tape-to-Tape — useful feedback that lands clean",
+      "3 = Spicy but Fair — hot, but still in bounds",
+      "4 = Tone Check — drifting into cheap-shot territory",
+      "5 = Cheap Shot — personal or disrespectful",
+      "6 = Gongshow — spam, trolling, or noise",
       "",
-      "Enter 1-5:"
+      "Enter 1-6:"
     ].join("\n"),
-    "3"
+    "1"
   );
 
   if (choice === null) return null;
 
-  const reasons = {
-    "1": "too_personal",
-    "2": "targeted_bullying",
-    "3": "trash_talk_too_far",
-    "4": "spam_trolling",
-    "5": "other"
+  const types = {
+    "1": "good_chirp",
+    "2": "tape_to_tape",
+    "3": "spicy_but_fair",
+    "4": "tone_check",
+    "5": "cheap_shot",
+    "6": "gongshow"
   };
 
-  return reasons[String(choice).trim()] || "other";
+  return types[String(choice).trim()] || "other";
 }
 
 async function chirpContent(contentType, contentId) {
-  const reason = getChirpReason();
+  const chirpType = getChirpType();
 
-  if (!reason) return null;
+  if (!chirpType) return null;
 
   return fetchJson("/api/chirps", {
     method: "POST",
     body: JSON.stringify({
       content_type: contentType,
       content_id: contentId,
-      reason
+      chirp_type: chirpType
     })
   });
 }
