@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.8.0",
-        message: "Chirp Watch added. Posts and comments can now be chirped.",
+        version: "0.8.1",
+        message: "Chirp Watch added. Posts and comments can now be chirped. -replace getPosts fucntion",
         timestamp: new Date().toISOString()
       });
     }
@@ -134,19 +134,24 @@ async function getPosts(env) {
         profiles.username AS author_username,
         profiles.position AS author_position,
         profiles.jersey_number AS author_jersey_number,
+
         COALESCE(
           (
-            SELECT GROUP_CONCAT(tag_rows.name, ',')
-            FROM (
-              SELECT tags.name
-              FROM post_tags
-              JOIN tags ON tags.id = post_tags.tag_id
-              WHERE post_tags.post_id = posts.id
-              ORDER BY tags.name
-            ) AS tag_rows
+            SELECT GROUP_CONCAT(tags.name, ',')
+            FROM post_tags
+            JOIN tags ON tags.id = post_tags.tag_id
+            WHERE post_tags.post_id = posts.id
           ),
           ''
         ) AS tags,
+
+        (
+          SELECT COUNT(*)
+          FROM comments
+          WHERE comments.post_id = posts.id
+            AND comments.status = 'visible'
+        ) AS comment_count,
+
         (
           SELECT COUNT(*)
           FROM content_chirps
@@ -154,6 +159,7 @@ async function getPosts(env) {
             AND content_chirps.content_id = posts.id
             AND content_chirps.status = 'active'
         ) AS chirp_count,
+
         COALESCE(
           (
             SELECT 1
@@ -166,12 +172,7 @@ async function getPosts(env) {
           ),
           0
         ) AS user_chirped
-        (
-          SELECT COUNT(*)
-          FROM comments
-          WHERE comments.post_id = posts.id
-            AND comments.status = 'visible'
-        ) AS comment_count
+
       FROM posts
       JOIN users ON users.id = posts.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
