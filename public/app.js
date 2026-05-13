@@ -736,7 +736,7 @@ function renderChirpProfile(profile) {
           ${axes
             .map((axis) => {
               return `
-                <span class="chirp-score">
+                <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
                   <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
                 </span>
               `;
