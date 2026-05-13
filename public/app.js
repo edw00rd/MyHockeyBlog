@@ -138,6 +138,7 @@ function renderPosts(posts) {
           .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
           .join("")}</div>`
       : "";
+
     const chirpCount = Number(post.chirp_count || 0);
     const userChirped = Number(post.user_chirped || 0) === 1;
     const chirpLabel = getChirpProfileLabel(post);
@@ -167,13 +168,13 @@ function renderPosts(posts) {
           ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
         </button>
 
-        <div class="chirp-profile-wrap">
-          ${chirpProfileHtml}
-        </div>
-      
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
+      </div>
+
+      <div class="chirp-profile-wrap">
+        ${chirpProfileHtml}
       </div>
 
       <p class="muted small">
@@ -186,9 +187,9 @@ function renderPosts(posts) {
         <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
           Comments (${Number(post.comment_count || 0)})
         </button>
-      
+
         <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
-      
+
         ${
           Number(post.comments_enabled) === 1
             ? `<form class="comment-form" data-post-id="${escapeHtml(post.id)}" hidden>
@@ -205,7 +206,7 @@ function renderPosts(posts) {
 
     container.appendChild(card);
   }
-  
+
   wireCommentControls();
   wireChirpControls();
 }
@@ -404,6 +405,7 @@ function renderComments(postId, comments) {
       const userChirped = Number(comment.user_chirped || 0) === 1;
       const chirpLabel = getChirpProfileLabel(comment);
       const chirpProfileHtml = renderChirpProfile(comment);
+
       return `
         <div class="comment-card" data-comment-id="${escapeHtml(comment.id)}">
           <p>${escapeHtml(comment.body)}</p>
@@ -433,7 +435,7 @@ function renderComments(postId, comments) {
               ▼
             </button>
           </div>
-          
+
           <div class="post-meta">
             <button
               class="button ghost chirp-button ${userChirped ? "active" : ""}"
@@ -444,14 +446,15 @@ function renderComments(postId, comments) {
               ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
             </button>
 
-            <div class="chirp-profile-wrap">
-              ${chirpProfileHtml}
-            </div>
-            
             <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
               ${escapeHtml(chirpLabel)}
             </span>
           </div>
+
+          <div class="chirp-profile-wrap">
+            ${chirpProfileHtml}
+          </div>
+
           <p class="muted small">
             ${escapeHtml(author)} • ${formatDate(comment.created_at)}
           </p>
@@ -573,6 +576,38 @@ function renderChirpProfile(profile) {
     </div>
   `;
 }
+
+function getChirpType() {
+  const choice = window.prompt(
+    [
+      "What kind of chirp is this?",
+      "",
+      "1 = Good Chirp — funny hockey banter",
+      "2 = Tape-to-Tape — useful feedback that lands clean",
+      "3 = Spicy but Fair — hot, but still in bounds",
+      "4 = Tone Check — drifting into cheap-shot territory",
+      "5 = Cheap Shot — personal or disrespectful",
+      "6 = Gongshow — spam, trolling, or noise",
+      "",
+      "Enter 1-6:"
+    ].join("\n"),
+    "1"
+  );
+
+  if (choice === null) return null;
+
+  const types = {
+    "1": "good_chirp",
+    "2": "tape_to_tape",
+    "3": "spicy_but_fair",
+    "4": "tone_check",
+    "5": "cheap_shot",
+    "6": "gongshow"
+  };
+
+  return types[String(choice).trim()] || "other";
+}
+
 async function chirpContent(contentType, contentId) {
   const chirpType = getChirpType();
 
@@ -611,6 +646,36 @@ function updateChirpButton(button, result) {
     profileTarget.innerHTML = renderChirpProfile(result);
   }
 }
+
+function wireChirpControls() {
+  document.querySelectorAll(".chirp-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const contentType = button.dataset.contentType;
+      const contentId = button.dataset.contentId;
+
+      if (!contentType || !contentId) return;
+
+      try {
+        button.disabled = true;
+
+        const result = await chirpContent(contentType, contentId);
+
+        if (result) {
+          updateChirpButton(button, result);
+        }
+      } catch (error) {
+        alert(`Could not chirp this: ${error.message}`);
+        console.error(error);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
 function renderError(error) {
   const container = $("#post-list");
 
