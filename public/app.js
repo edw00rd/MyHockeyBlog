@@ -544,30 +544,56 @@ function getChirpProfileLabel(profile) {
 function getChirpAxisData(profile) {
   return [
     {
+      key: "helpful",
       label: "Tape-to-Tape",
-      value: Number(profile.helpful_score || 0)
+      value: Number(profile.helpful_score || 0),
+      color: "#4FD1C5"
     },
     {
+      key: "funny",
       label: "Laughs",
-      value: Number(profile.funny_score || 0)
+      value: Number(profile.funny_score || 0),
+      color: "#F6E05E"
     },
     {
+      key: "heat",
       label: "Heat",
-      value: Number(profile.heat_score || 0)
+      value: Number(profile.heat_score || 0),
+      color: "#F6AD55"
     },
     {
+      key: "rude",
       label: "Cheap Shot",
-      value: Number(profile.rude_score || 0)
+      value: Number(profile.rude_score || 0),
+      color: "#FC8181"
     },
     {
+      key: "targeted",
       label: "Head-Hunting",
-      value: Number(profile.targeted_score || 0)
+      value: Number(profile.targeted_score || 0),
+      color: "#F687B3"
     },
     {
+      key: "spam",
       label: "Gongshow",
-      value: Number(profile.spam_score || 0)
+      value: Number(profile.spam_score || 0),
+      color: "#B794F4"
     }
   ];
+}
+
+function getDominantChirpAxis(axes) {
+  if (!axes.length) return null;
+
+  let dominant = axes[0];
+
+  for (const axis of axes) {
+    if (Number(axis.value || 0) > Number(dominant.value || 0)) {
+      dominant = axis;
+    }
+  }
+
+  return dominant;
 }
 
 function formatChirpScore(value) {
@@ -587,6 +613,7 @@ function polarPoint(cx, cy, radius, angleDeg) {
 function renderChirpRadar(profile) {
   const axes = getChirpAxisData(profile);
   const chirpCount = Number(profile.chirp_count || 0);
+  const dominantAxis = getDominantChirpAxis(axes);
 
   if (chirpCount === 0) return "";
 
@@ -646,6 +673,19 @@ function renderChirpRadar(profile) {
       const clampedValue = Math.max(0, Math.min(5, Number(axis.value || 0)));
       const radius = (clampedValue / 5) * maxRadius;
       const point = polarPoint(cx, cy, radius, angle);
+      const isDominant = dominantAxis && axis.key === dominantAxis.key;
+
+      if (isDominant) {
+        return `
+          <circle
+            cx="${point.x.toFixed(1)}"
+            cy="${point.y.toFixed(1)}"
+            r="4"
+            class="chirp-node-dominant"
+            style="--node-color: ${axis.color};"
+          />
+        `;
+      }
 
       return `
         <circle
