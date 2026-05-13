@@ -146,10 +146,32 @@ function renderPosts(posts) {
         ${post.author_position ? ` • ${escapeHtml(post.author_position)}` : ""}
         ${post.author_jersey_number ? ` • #${escapeHtml(post.author_jersey_number)}` : ""}
       </p>
+
+      <div class="comments-panel" data-comments-for="${escapeHtml(post.id)}">
+        <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
+          Comments (${Number(post.comment_count || 0)})
+        </button>
+      
+        <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
+      
+        ${
+          Number(post.comments_enabled) === 1
+            ? `<form class="comment-form" data-post-id="${escapeHtml(post.id)}" hidden>
+                <label>
+                  Add a comment
+                  <input name="comment" type="text" placeholder="Write a supportive note or feedback..." required />
+                </label>
+                <button class="button secondary" type="submit">Post comment</button>
+              </form>`
+            : `<p class="muted small">Comments are disabled for this post.</p>`
+        }
+      </div>
     `;
 
     container.appendChild(card);
   }
+  
+  wireCommentControls();
 }
 
 function renderEventsPlaceholder() {
@@ -247,6 +269,111 @@ function wireForms() {
       alert("Local demo reset is disabled. Posts are now stored in D1.");
     });
   }
+}
+
+function wireCommentControls() {
+  document.querySelectorAll(".comment-toggle").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const postId = button.dataset.postId;
+      const list = document.querySelector(`#comments-${CSS.escape(postId)}`);
+      const form = document.querySelector(`.comment-form[data-post-id="${CSS.escape(postId)}"]`);
+
+      if (!list) return;
+
+      const shouldOpen = list.hidden;
+
+      list.hidden = !shouldOpen;
+
+      if (form) {
+        form.hidden = !shouldOpen;
+      }
+
+      if (!shouldOpen) return;
+
+      list.innerHTML = `<div class="empty-state">Loading comments...</div>`;
+
+      try {
+        const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
+        renderComments(postId, data.comments || []);
+      } catch (error) {
+        list.innerHTML = `<div class="empty-state">Could not load comments: ${escapeHtml(error.message)}</div>`;
+      }
+    });
+  });
+
+  document.querySelectorAll(".comment-form").forEach((form) => {
+    if (form.dataset.wired) return;
+    form.dataset.wired = "true";
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const postId = form.dataset.postId;
+      const input = form.querySelector("input[name='comment']");
+      const button = form.querySelector("button[type='submit']");
+      const body = String(input?.value || "").trim();
+
+      if (!body) {
+        alert("Please enter a comment.");
+        return;
+      }
+
+      try {
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Posting...";
+        }
+
+        await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+          method: "POST",
+          body: JSON.stringify({ body })
+        });
+
+        input.value = "";
+
+        const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
+        renderComments(postId, data.comments || []);
+
+        const postsData = await fetchJson("/api/posts");
+        renderPosts(postsData.posts || []);
+      } catch (error) {
+        alert(`Could not save comment: ${error.message}`);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Post comment";
+        }
+      }
+    });
+  });
+}
+
+function renderComments(postId, comments) {
+  const list = document.querySelector(`#comments-${CSS.escape(postId)}`);
+  if (!list) return;
+
+  if (!comments.length) {
+    list.innerHTML = `<div class="empty-state">No comments yet.</div>`;
+    return;
+  }
+
+  list.innerHTML = comments
+    .map((comment) => {
+      const author = comment.author_display_name || comment.author_username || "Demo Skater";
+
+      return `
+        <div class="comment-card">
+          <p>${escapeHtml(comment.body)}</p>
+          <p class="muted small">
+            ${escapeHtml(author)} • score ${Number(comment.score || 0)} • ${formatDate(comment.created_at)}
+          </p>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderError(error) {
