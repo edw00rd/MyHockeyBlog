@@ -363,17 +363,99 @@ function renderComments(postId, comments) {
   list.innerHTML = comments
     .map((comment) => {
       const author = comment.author_display_name || comment.author_username || "Demo Skater";
+      const userVote = Number(comment.user_vote || 0);
 
       return `
-        <div class="comment-card">
+        <div class="comment-card" data-comment-id="${escapeHtml(comment.id)}">
           <p>${escapeHtml(comment.body)}</p>
+
+          <div class="comment-actions">
+            <button
+              class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
+              type="button"
+              data-comment-id="${escapeHtml(comment.id)}"
+              data-vote-value="1"
+              aria-label="Upvote comment"
+            >
+              ▲
+            </button>
+
+            <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
+              ${Number(comment.score || 0)}
+            </strong>
+
+            <button
+              class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
+              type="button"
+              data-comment-id="${escapeHtml(comment.id)}"
+              data-vote-value="-1"
+              aria-label="Downvote comment"
+            >
+              ▼
+            </button>
+          </div>
+
           <p class="muted small">
-            ${escapeHtml(author)} • score ${Number(comment.score || 0)} • ${formatDate(comment.created_at)}
+            ${escapeHtml(author)} • ${formatDate(comment.created_at)}
           </p>
         </div>
       `;
     })
     .join("");
+
+  wireCommentVoteControls();
+}
+
+function wireCommentVoteControls() {
+  document.querySelectorAll(".comment-vote").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const commentId = button.dataset.commentId;
+      const voteValue = Number(button.dataset.voteValue);
+
+      if (!commentId || ![1, -1].includes(voteValue)) return;
+
+      try {
+        button.disabled = true;
+
+        const result = await fetchJson(`/api/comments/${encodeURIComponent(commentId)}/vote`, {
+          method: "POST",
+          body: JSON.stringify({
+            vote_value: voteValue
+          })
+        });
+
+        const scoreEl = document.querySelector(`#comment-score-${CSS.escape(commentId)}`);
+        if (scoreEl) {
+          scoreEl.textContent = result.score;
+        }
+
+        const commentCard = document.querySelector(`.comment-card[data-comment-id="${CSS.escape(commentId)}"]`);
+        if (commentCard) {
+          commentCard.querySelectorAll(".comment-vote").forEach((voteButton) => {
+            voteButton.classList.remove("active");
+          });
+
+          if (Number(result.user_vote) !== 0) {
+            const activeButton = commentCard.querySelector(
+              `.comment-vote[data-vote-value="${Number(result.user_vote)}"]`
+            );
+
+            if (activeButton) {
+              activeButton.classList.add("active");
+            }
+          }
+        }
+      } catch (error) {
+        alert(`Could not save vote: ${error.message}`);
+        console.error(error);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function renderError(error) {
