@@ -539,3 +539,17 @@ textarea:focus {
 .comment-form {
   margin-top: 0.75rem;
 }
+
+.chirp-button.active {
+  border-color: rgba(248, 113, 113, 0.95);
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.14);
+}
+
+.chirp-badge {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.comment-card .chirp-button,
+.post-card .chirp-button {
+  margin-top: 0.25rem;
+}
