@@ -547,37 +547,37 @@ function getChirpAxisData(profile) {
       key: "helpful",
       label: "Tape-to-Tape",
       value: Number(profile.helpful_score || 0),
-      color: "#4FD1C5"
+      color: "#00C8FF"
     },
     {
       key: "funny",
       label: "Laughs",
       value: Number(profile.funny_score || 0),
-      color: "#F6E05E"
+      color: "#FFE600"
     },
     {
       key: "heat",
       label: "Heat",
       value: Number(profile.heat_score || 0),
-      color: "#F6AD55"
+      color: "#FF7A00"
     },
     {
       key: "rude",
       label: "Cheap Shot",
       value: Number(profile.rude_score || 0),
-      color: "#FC8181"
+      color: "#FF2B2B"
     },
     {
       key: "targeted",
       label: "Head-Hunting",
       value: Number(profile.targeted_score || 0),
-      color: "#F687B3"
+      color: "#FF007A"
     },
     {
       key: "spam",
       label: "Gongshow",
       value: Number(profile.spam_score || 0),
-      color: "#B794F4"
+      color: "#7C3AED"
     }
   ];
 }
