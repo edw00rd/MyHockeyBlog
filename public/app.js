@@ -590,10 +590,10 @@ function renderChirpRadar(profile) {
 
   if (chirpCount === 0) return "";
 
-  const size = 180;
-  const cx = 90;
-  const cy = 90;
-  const maxRadius = 62;
+  const size = 120;
+  const cx = 60;
+  const cy = 60;
+  const maxRadius = 42;
   const ringLevels = [1, 2, 3, 4, 5];
 
   const ringPolygons = ringLevels
@@ -660,7 +660,13 @@ function renderChirpRadar(profile) {
 
   return `
     <div class="chirp-radar" aria-label="Chirp profile radar chart">
-      <svg viewBox="0 0 ${size} ${size}" role="img" aria-hidden="true">
+        <svg
+          viewBox="0 0 ${size} ${size}"
+          width="120"
+          height="120"
+          role="img"
+          aria-hidden="true"
+        >
         ${ringPolygons}
         ${axisLines}
         <polygon points="${polygonPoints}" class="chirp-shape" />
