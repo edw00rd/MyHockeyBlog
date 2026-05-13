@@ -1,3 +1,7 @@
+const DEMO_USER_ID = "user_demo_001";
+const DEMO_PROFILE_ID = "profile_demo_001";
+const DEMO_USERNAME = "demo-skater";
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -15,36 +19,14 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.5.1",
-        message: "Post tags fixed. Posts save and display tags from D1.",
+        version: "0.5.3",
+        message: "Post creation and tag saving polished. Demo author safety check enabled.",
         timestamp: new Date().toISOString()
       });
     }
 
     if (url.pathname === "/api/db-test") {
-      try {
-        const result = await env.DB
-          .prepare("SELECT 1 AS ok, datetime('now') AS checked_at")
-          .first();
-
-        return json({
-          ok: true,
-          service: "MyHockeyBlog",
-          database: "hockey_blog_db",
-          message: "D1 database connection is working.",
-          result
-        });
-      } catch (error) {
-        return json(
-          {
-            ok: false,
-            service: "MyHockeyBlog",
-            message: "D1 database connection failed.",
-            error: error.message
-          },
-          500
-        );
-      }
+      return dbTest(env);
     }
 
     if (url.pathname === "/api/posts" && method === "GET") {
@@ -88,6 +70,32 @@ export default {
   }
 };
 
+async function dbTest(env) {
+  try {
+    const result = await env.DB
+      .prepare("SELECT 1 AS ok, datetime('now') AS checked_at")
+      .first();
+
+    return json({
+      ok: true,
+      service: "MyHockeyBlog",
+      database: "hockey_blog_db",
+      message: "D1 database connection is working.",
+      result
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        service: "MyHockeyBlog",
+        message: "D1 database connection failed.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
 async function getPosts(env) {
   try {
     const result = await env.DB.prepare(
@@ -109,10 +117,14 @@ async function getPosts(env) {
         profiles.jersey_number AS author_jersey_number,
         COALESCE(
           (
-            SELECT GROUP_CONCAT(tags.name, ',')
-            FROM post_tags
-            JOIN tags ON tags.id = post_tags.tag_id
-            WHERE post_tags.post_id = posts.id
+            SELECT GROUP_CONCAT(tag_rows.name, ',')
+            FROM (
+              SELECT tags.name
+              FROM post_tags
+              JOIN tags ON tags.id = post_tags.tag_id
+              WHERE post_tags.post_id = posts.id
+              ORDER BY tags.name
+            ) AS tag_rows
           ),
           ''
         ) AS tags
@@ -144,7 +156,7 @@ async function getPosts(env) {
 
 async function createPost(request, env) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
 
     const title = String(body.title || "").trim();
     const content = String(body.body || "").trim();
@@ -152,8 +164,6 @@ async function createPost(request, env) {
     const visibility = String(body.visibility || "public").trim();
     const commentsEnabled = body.comments_enabled === false ? 0 : 1;
     const rawTags = body.tags || "";
-
-    const demoUserId = "user_demo_001";
 
     if (!title) {
       return json(
@@ -182,6 +192,9 @@ async function createPost(request, env) {
     const safeVisibility = allowedVisibility.includes(visibility) ? visibility : "public";
 
     const now = new Date().toISOString();
+
+    await ensureDemoAuthor(env, now);
+
     const postId = crypto.randomUUID();
 
     await env.DB.prepare(
@@ -204,7 +217,7 @@ async function createPost(request, env) {
     )
       .bind(
         postId,
-        demoUserId,
+        DEMO_USER_ID,
         title,
         content,
         safePostType,
@@ -217,7 +230,7 @@ async function createPost(request, env) {
       )
       .run();
 
-    const savedTags = await savePostTags(env, postId, rawTags, demoUserId, now);
+    const savedTags = await savePostTags(env, postId, rawTags, DEMO_USER_ID, now);
 
     return json(
       {
@@ -250,6 +263,10 @@ async function createPost(request, env) {
 
 async function getProfileByUsername(env, username) {
   try {
+    if (username === DEMO_USERNAME) {
+      await ensureDemoAuthor(env, new Date().toISOString());
+    }
+
     const profile = await env.DB.prepare(
       `
       SELECT
@@ -305,10 +322,14 @@ async function getProfileByUsername(env, username) {
         posts.created_at,
         COALESCE(
           (
-            SELECT GROUP_CONCAT(tags.name, ',')
-            FROM post_tags
-            JOIN tags ON tags.id = post_tags.tag_id
-            WHERE post_tags.post_id = posts.id
+            SELECT GROUP_CONCAT(tag_rows.name, ',')
+            FROM (
+              SELECT tags.name
+              FROM post_tags
+              JOIN tags ON tags.id = post_tags.tag_id
+              WHERE post_tags.post_id = posts.id
+              ORDER BY tags.name
+            ) AS tag_rows
           ),
           ''
         ) AS tags
@@ -358,23 +379,121 @@ async function getProfileByUsername(env, username) {
   }
 }
 
+async function ensureDemoAuthor(env, now) {
+  await env.DB.prepare(
+    `
+    INSERT OR IGNORE INTO users (
+      id,
+      email,
+      display_name,
+      auth_provider,
+      auth_provider_user_id,
+      role,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      DEMO_USER_ID,
+      "demo@example.com",
+      "Demo Skater",
+      "demo",
+      "demo-user-001",
+      "user",
+      now,
+      now
+    )
+    .run();
+
+  await env.DB.prepare(
+    `
+    INSERT OR IGNORE INTO profiles (
+      id,
+      user_id,
+      username,
+      display_name,
+      bio,
+      position,
+      shoots,
+      jersey_number,
+      team_name,
+      home_rink,
+      skill_level,
+      profile_visibility,
+      show_stats_publicly,
+      show_calendar_publicly,
+      allow_post_tagging,
+      allow_media_tagging,
+      require_tag_approval,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      DEMO_PROFILE_ID,
+      DEMO_USER_ID,
+      DEMO_USERNAME,
+      "Demo Skater",
+      "Adult hockey player tracking progress, ice sessions, games, photos, videos, and skill development.",
+      "Wing",
+      "right",
+      "00",
+      "MyHockeyBlog Demo Team",
+      "Demo Ice Arena",
+      "Beginner / beer league",
+      "public",
+      1,
+      1,
+      1,
+      1,
+      1,
+      now,
+      now
+    )
+    .run();
+}
+
+async function readJsonBody(request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new Error("Request body must be valid JSON.");
+  }
+}
+
 function parseTags(rawTags) {
   if (!rawTags) return [];
 
   const value = Array.isArray(rawTags) ? rawTags.join(",") : String(rawTags);
+  const seenSlugs = new Set();
+  const parsedTags = [];
 
-  const tags = value
-    .split(",")
-    .map((tag) => tag.trim())
-    .map((tag) => tag.replace(/^#/, ""))
-    .filter(Boolean)
-    .map((tag) => tag.slice(0, 32));
+  for (const item of value.split(",")) {
+    const name = item
+      .trim()
+      .replace(/^#/, "")
+      .replace(/\s+/g, " ")
+      .slice(0, 32);
 
-  return [...new Set(tags)].slice(0, 10);
+    if (!name) continue;
+
+    const slug = slugifyTag(name);
+
+    if (!slug || seenSlugs.has(slug)) continue;
+
+    seenSlugs.add(slug);
+    parsedTags.push({ name, slug });
+  }
+
+  return parsedTags.slice(0, 10);
 }
 
 function slugifyTag(tag) {
-  return tag
+  return String(tag)
     .toLowerCase()
     .trim()
     .replace(/^#/, "")
@@ -387,13 +506,8 @@ async function savePostTags(env, postId, rawTags, createdByUserId, now) {
   const tags = parseTags(rawTags);
   const savedTags = [];
 
-  for (const tagName of tags) {
-    const slug = slugifyTag(tagName);
-
-    if (!slug) continue;
-
-    const tagId = `tag_${slug}`;
-    const postTagId = `post_tag_${postId}_${slug}`;
+  for (const tag of tags) {
+    const preferredTagId = `tag_${tag.slug}`;
 
     await env.DB.prepare(
       `
@@ -407,8 +521,21 @@ async function savePostTags(env, postId, rawTags, createdByUserId, now) {
       VALUES (?, ?, ?, ?, ?)
       `
     )
-      .bind(tagId, tagName, slug, createdByUserId, now)
+      .bind(preferredTagId, tag.name, tag.slug, createdByUserId, now)
       .run();
+
+    const existingTag = await env.DB.prepare(
+      `
+      SELECT id, name, slug
+      FROM tags
+      WHERE slug = ?
+      LIMIT 1
+      `
+    )
+      .bind(tag.slug)
+      .first();
+
+    if (!existingTag) continue;
 
     await env.DB.prepare(
       `
@@ -421,12 +548,12 @@ async function savePostTags(env, postId, rawTags, createdByUserId, now) {
       VALUES (?, ?, ?, ?)
       `
     )
-      .bind(postTagId, postId, tagId, now)
+      .bind(`post_tag_${crypto.randomUUID()}`, postId, existingTag.id, now)
       .run();
 
     savedTags.push({
-      name: tagName,
-      slug
+      name: existingTag.name,
+      slug: existingTag.slug
     });
   }
 

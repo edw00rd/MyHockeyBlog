@@ -40,7 +40,10 @@ async function fetchJson(url, options = {}) {
     ...options
   });
 
-  const data = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : { ok: false, message: await response.text() };
 
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || data.message || `Request failed: ${url}`);
@@ -111,12 +114,18 @@ function renderPosts(posts) {
     const card = document.createElement("article");
     card.className = "post-card";
 
-    const commentsStatus = post.comments_enabled ? "on" : "off";
+    const commentsStatus = Number(post.comments_enabled) === 1 ? "on" : "off";
     const author = post.author_display_name || post.author_username || "Unknown skater";
     const tagList = String(post.tags || "")
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean);
+
+    const tagsHtml = tagList.length
+      ? `<div class="post-meta tags">${tagList
+          .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
+          .join("")}</div>`
+      : "";
 
     card.innerHTML = `
       <div class="post-meta">
@@ -129,13 +138,8 @@ function renderPosts(posts) {
       <h3>${escapeHtml(post.title || "Untitled post")}</h3>
 
       <p class="muted">${escapeHtml(post.body || "")}</p>
-      ${
-        tagList.length
-          ? `<div class="post-meta">${tagList
-              .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
-              .join("")}</div>`
-          : ""
-      }
+
+      ${tagsHtml}
 
       <p class="muted small">
         Posted by ${escapeHtml(author)}
@@ -178,7 +182,6 @@ function wireForms() {
       const visibility = String(form.get("visibility") || "public").trim();
       const comments = String(form.get("comments") || "allow").trim();
       const tags = String(form.get("tags") || "").trim();
-      
 
       if (!title || !body) {
         alert("Please enter both a title and an update.");
@@ -202,10 +205,15 @@ function wireForms() {
             tags
           })
         });
-        
+
         postForm.reset();
 
-        await loadHomepage();
+        const postsData = await fetchJson("/api/posts");
+        renderPosts(postsData.posts || []);
+
+        if (visibility !== "public") {
+          alert("Post saved to D1. Because it is private/unlisted, it will not appear in the public feed yet.");
+        }
 
         document.querySelector("#posts")?.scrollIntoView({
           behavior: "smooth",

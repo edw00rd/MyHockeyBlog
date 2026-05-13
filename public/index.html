@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="A public-facing hockey progress blog for tracking ice sessions, games, videos, stats, and community feedback."
+      content="A public-facing hockey progress blog for tracking ice sessions, games, photos, videos, stats, tags, and community feedback."
     />
     <meta property="og:title" content="MyHockeyBlog" />
-    <meta property="og:description" content="Track hockey progress, posts, games, stats, videos, and feedback." />
+    <meta property="og:description" content="Track hockey progress, posts, games, stats, media, tags, and feedback." />
     <meta property="og:type" content="website" />
     <title>MyHockeyBlog</title>
     <link rel="stylesheet" href="/style.css" />
@@ -35,11 +35,11 @@
           <p class="eyebrow">Free infrastructure MVP</p>
           <h1>Track hockey progress in public. Control the details in private.</h1>
           <p>
-            This starter app is running as a Cloudflare Worker with static assets. Right now it uses local browser
-            storage for demo data. Next, we wire in D1 for the database, R2 for media, and real auth.
+            This app is running on Cloudflare Workers with static assets and a D1 database. Posts now save to D1,
+            tags are stored in real tables, and the next platform milestone is media support with R2.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="#new-post">Create demo post</a>
+            <a class="button primary" href="#new-post">Create post</a>
             <a class="button secondary" href="#calendar">Log ice time</a>
           </div>
         </div>
@@ -58,7 +58,7 @@
             </div>
             <div>
               <strong id="metric-views">0</strong>
-              <span>video views</span>
+              <span>media views</span>
             </div>
             <div>
               <strong id="metric-events">0</strong>
@@ -77,26 +77,26 @@
         <article class="status-card">
           <span class="status-dot good"></span>
           <h3>Worker API</h3>
-          <p><code>/api/health</code> and <code>/api/version</code> are ready.</p>
+          <p><code>/api/posts</code>, <code>/api/profile</code>, and <code>/api/version</code> are active.</p>
         </article>
         <article class="status-card">
-          <span class="status-dot pending"></span>
+          <span class="status-dot good"></span>
           <h3>Database</h3>
-          <p>D1 comes next for real posts, comments, calendar events, and stats.</p>
+          <p>D1 is live for profiles, posts, stats, tags, and the progress feed.</p>
         </article>
         <article class="status-card">
           <span class="status-dot pending"></span>
           <h3>Media</h3>
-          <p>R2 comes next for profile photos, clips, and post images.</p>
+          <p>R2 comes next for profile photos, clips, post images, and media tagging.</p>
         </article>
       </section>
 
       <section id="new-post" class="section-shell two-column">
         <div>
-          <p class="eyebrow">Demo post composer</p>
+          <p class="eyebrow">Post composer</p>
           <h2>Create a hockey progress update</h2>
           <p class="muted">
-            Posts now save to the Cloudflare D1 database. This is the first real write feature for the hockey progress blog.
+            Posts save to the Cloudflare D1 database. Tags are saved separately and displayed on the public feed.
           </p>
         </div>
         <form id="post-form" class="panel form-panel">
@@ -114,6 +114,7 @@
               <select name="visibility">
                 <option value="public">Public</option>
                 <option value="private">Private</option>
+                <option value="unlisted">Unlisted</option>
               </select>
             </label>
             <label>
@@ -133,8 +134,8 @@
             />
           </label>
           <label>
-            Video URL or note
-            <input name="video" type="text" placeholder="YouTube link, R2 object later, or practice clip note" />
+            Media URL or note
+            <input name="video" type="text" placeholder="YouTube link, R2 object later, photo/video note, or practice clip note" />
           </label>
           <button class="button primary" type="submit">Save post</button>
         </form>
@@ -146,7 +147,7 @@
             <p class="eyebrow">Progress feed</p>
             <h2>Posts</h2>
           </div>
-          <button id="reset-demo" class="button ghost" type="button">Reset demo data</button>
+          <button id="reset-demo" class="button ghost" type="button">Reset disabled</button>
         </div>
         <div id="post-list" class="post-list" aria-live="polite"></div>
       </section>
@@ -224,7 +225,7 @@
     </main>
 
     <footer class="site-footer">
-      <p>Built for free-first deployment on Cloudflare Workers. Next milestone: D1 schema.</p>
+      <p>Built for free-first deployment on Cloudflare Workers. Current milestone: D1-backed posts with tags.</p>
     </footer>
 
     <script src="/app.js" type="module"></script>
