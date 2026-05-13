@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.9.0",
-        message: "Locker Room Karma added. Profiles now expose computed karma.",
+        version: "0.10.0",
+        message: "Chirp Profile added. Chirps now store hockey-tone radar scores.",
         timestamp: new Date().toISOString()
       });
     }
@@ -180,6 +180,72 @@ async function getPosts(env) {
 
         COALESCE(
           (
+            SELECT ROUND(AVG(helpful_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS helpful_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(funny_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS funny_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(heat_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS heat_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(rude_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS rude_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(targeted_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS targeted_score,
+
+        COALESCE(
+          (
+            SELECT ROUND(AVG(spam_score), 1)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.status = 'active'
+          ),
+          0
+        ) AS spam_score,
+
+        COALESCE(
+          (
             SELECT 1
             FROM content_chirps
             WHERE content_chirps.content_type = 'post'
@@ -218,7 +284,6 @@ async function getPosts(env) {
     );
   }
 }
-
 async function createPost(request, env) {
   try {
     const body = await readJsonBody(request);
@@ -703,15 +768,17 @@ async function createChirp(request, env) {
 
     const contentType = String(body.content_type || "").trim();
     const contentId = String(body.content_id || "").trim();
-    const reason = String(body.reason || "other").trim();
+    const chirpType = String(body.chirp_type || "other").trim();
     const note = String(body.note || "").trim();
 
     const allowedContentTypes = ["post", "comment"];
-    const allowedReasons = [
-      "too_personal",
-      "targeted_bullying",
-      "trash_talk_too_far",
-      "spam_trolling",
+    const allowedChirpTypes = [
+      "good_chirp",
+      "tape_to_tape",
+      "spicy_but_fair",
+      "tone_check",
+      "cheap_shot",
+      "gongshow",
       "other"
     ];
 
@@ -735,7 +802,8 @@ async function createChirp(request, env) {
       );
     }
 
-    const safeReason = allowedReasons.includes(reason) ? reason : "other";
+    const safeChirpType = allowedChirpTypes.includes(chirpType) ? chirpType : "other";
+    const profile = getChirpPresetProfile(safeChirpType);
     const safeNote = note.slice(0, 500);
     const now = new Date().toISOString();
 
@@ -769,7 +837,6 @@ async function createChirp(request, env) {
     let userChirped = true;
 
     if (existing && existing.status === "active") {
-      // Clicking Chirp again removes the user's chirp.
       await env.DB.prepare(
         `
         UPDATE content_chirps
@@ -783,18 +850,36 @@ async function createChirp(request, env) {
 
       userChirped = false;
     } else if (existing) {
-      // Re-activate a previously dismissed chirp.
       await env.DB.prepare(
         `
         UPDATE content_chirps
-        SET reason = ?,
+        SET chirp_type = ?,
+            reason = ?,
             note = ?,
+            helpful_score = ?,
+            funny_score = ?,
+            heat_score = ?,
+            rude_score = ?,
+            targeted_score = ?,
+            spam_score = ?,
             status = 'active',
             updated_at = ?
         WHERE id = ?
         `
       )
-        .bind(safeReason, safeNote, now, existing.id)
+        .bind(
+          safeChirpType,
+          safeChirpType,
+          safeNote,
+          profile.helpful_score,
+          profile.funny_score,
+          profile.heat_score,
+          profile.rude_score,
+          profile.targeted_score,
+          profile.spam_score,
+          now,
+          existing.id
+        )
         .run();
     } else {
       await env.DB.prepare(
@@ -807,10 +892,17 @@ async function createChirp(request, env) {
           reason,
           note,
           status,
+          chirp_type,
+          helpful_score,
+          funny_score,
+          heat_score,
+          rude_score,
+          targeted_score,
+          spam_score,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
         .bind(
@@ -818,37 +910,31 @@ async function createChirp(request, env) {
           contentType,
           contentId,
           DEMO_USER_ID,
-          safeReason,
+          safeChirpType,
           safeNote,
           "active",
+          safeChirpType,
+          profile.helpful_score,
+          profile.funny_score,
+          profile.heat_score,
+          profile.rude_score,
+          profile.targeted_score,
+          profile.spam_score,
           now,
           now
         )
         .run();
     }
 
-    const countRow = await env.DB.prepare(
-      `
-      SELECT COUNT(*) AS chirp_count
-      FROM content_chirps
-      WHERE content_type = ?
-        AND content_id = ?
-        AND status = 'active'
-      `
-    )
-      .bind(contentType, contentId)
-      .first();
-
-    const chirpCount = Number(countRow?.chirp_count || 0);
+    const chirpProfile = await getChirpProfile(env, contentType, contentId);
 
     return json({
       ok: true,
       message: userChirped ? "Content chirped." : "Chirp removed.",
       content_type: contentType,
       content_id: contentId,
-      chirp_count: chirpCount,
       user_chirped: userChirped,
-      chirp_status: getChirpStatus(chirpCount)
+      ...chirpProfile
     });
   } catch (error) {
     return json(
@@ -860,6 +946,119 @@ async function createChirp(request, env) {
       500
     );
   }
+}
+
+function getChirpPresetProfile(chirpType) {
+  const presets = {
+    good_chirp: {
+      helpful_score: 2,
+      funny_score: 5,
+      heat_score: 2,
+      rude_score: 0,
+      targeted_score: 0,
+      spam_score: 0
+    },
+    tape_to_tape: {
+      helpful_score: 5,
+      funny_score: 1,
+      heat_score: 1,
+      rude_score: 0,
+      targeted_score: 0,
+      spam_score: 0
+    },
+    spicy_but_fair: {
+      helpful_score: 2,
+      funny_score: 4,
+      heat_score: 5,
+      rude_score: 1,
+      targeted_score: 0,
+      spam_score: 0
+    },
+    tone_check: {
+      helpful_score: 1,
+      funny_score: 1,
+      heat_score: 3,
+      rude_score: 3,
+      targeted_score: 1,
+      spam_score: 0
+    },
+    cheap_shot: {
+      helpful_score: 0,
+      funny_score: 0,
+      heat_score: 4,
+      rude_score: 5,
+      targeted_score: 2,
+      spam_score: 0
+    },
+    gongshow: {
+      helpful_score: 0,
+      funny_score: 1,
+      heat_score: 2,
+      rude_score: 1,
+      targeted_score: 0,
+      spam_score: 5
+    },
+    other: {
+      helpful_score: 0,
+      funny_score: 0,
+      heat_score: 1,
+      rude_score: 0,
+      targeted_score: 0,
+      spam_score: 0
+    }
+  };
+
+  return presets[chirpType] || presets.other;
+}
+
+async function getChirpProfile(env, contentType, contentId) {
+  const row = await env.DB.prepare(
+    `
+    SELECT
+      COUNT(*) AS chirp_count,
+      COALESCE(ROUND(AVG(helpful_score), 1), 0) AS helpful_score,
+      COALESCE(ROUND(AVG(funny_score), 1), 0) AS funny_score,
+      COALESCE(ROUND(AVG(heat_score), 1), 0) AS heat_score,
+      COALESCE(ROUND(AVG(rude_score), 1), 0) AS rude_score,
+      COALESCE(ROUND(AVG(targeted_score), 1), 0) AS targeted_score,
+      COALESCE(ROUND(AVG(spam_score), 1), 0) AS spam_score
+    FROM content_chirps
+    WHERE content_type = ?
+      AND content_id = ?
+      AND status = 'active'
+    `
+  )
+    .bind(contentType, contentId)
+    .first();
+
+  const profile = {
+    chirp_count: Number(row?.chirp_count || 0),
+    helpful_score: Number(row?.helpful_score || 0),
+    funny_score: Number(row?.funny_score || 0),
+    heat_score: Number(row?.heat_score || 0),
+    rude_score: Number(row?.rude_score || 0),
+    targeted_score: Number(row?.targeted_score || 0),
+    spam_score: Number(row?.spam_score || 0)
+  };
+
+  return {
+    ...profile,
+    chirp_status: getChirpProfileStatus(profile)
+  };
+}
+
+function getChirpProfileStatus(profile) {
+  if (profile.chirp_count === 0) return "normal";
+
+  if (profile.spam_score >= 4) return "gongshow";
+  if (profile.rude_score >= 4 && profile.targeted_score >= 3) return "ref_review";
+  if (profile.rude_score >= 4) return "cheap_shot";
+  if (profile.rude_score >= 3 || profile.targeted_score >= 2) return "tone_check";
+  if (profile.heat_score >= 4 && profile.rude_score <= 2) return "spicy_but_fair";
+  if (profile.helpful_score >= 4) return "tape_to_tape";
+  if (profile.funny_score >= 4) return "good_chirp";
+
+  return "chirp_watch";
 }
 
 async function verifyChirpContentExists(env, contentType, contentId) {
