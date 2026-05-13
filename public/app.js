@@ -126,6 +126,9 @@ function renderPosts(posts) {
           .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
           .join("")}</div>`
       : "";
+    const chirpCount = Number(post.chirp_count || 0);
+    const userChirped = Number(post.user_chirped || 0) === 1;
+    const chirpLabel = getChirpStatusLabel(chirpCount);
 
     card.innerHTML = `
       <div class="post-meta">
@@ -140,6 +143,21 @@ function renderPosts(posts) {
       <p class="muted">${escapeHtml(post.body || "")}</p>
 
       ${tagsHtml}
+
+      <div class="post-meta">
+        <button
+          class="button ghost chirp-button ${userChirped ? "active" : ""}"
+          type="button"
+          data-content-type="post"
+          data-content-id="${escapeHtml(post.id)}"
+        >
+          ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
+        </button>
+      
+        <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
+          ${escapeHtml(chirpLabel)}
+        </span>
+      </div>
 
       <p class="muted small">
         Posted by ${escapeHtml(author)}
@@ -172,6 +190,7 @@ function renderPosts(posts) {
   }
   
   wireCommentControls();
+  wireChirpControls();
 }
 
 function renderEventsPlaceholder() {
@@ -364,6 +383,9 @@ function renderComments(postId, comments) {
     .map((comment) => {
       const author = comment.author_display_name || comment.author_username || "Demo Skater";
       const userVote = Number(comment.user_vote || 0);
+      const chirpCount = Number(comment.chirp_count || 0);
+      const userChirped = Number(comment.user_chirped || 0) === 1;
+      const chirpLabel = getChirpStatusLabel(chirpCount);
 
       return `
         <div class="comment-card" data-comment-id="${escapeHtml(comment.id)}">
@@ -394,7 +416,21 @@ function renderComments(postId, comments) {
               ▼
             </button>
           </div>
-
+          
+          <div class="post-meta">
+            <button
+              class="button ghost chirp-button ${userChirped ? "active" : ""}"
+              type="button"
+              data-content-type="comment"
+              data-content-id="${escapeHtml(comment.id)}"
+            >
+              ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
+            </button>
+          
+            <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
+              ${escapeHtml(chirpLabel)}
+            </span>
+          </div>
           <p class="muted small">
             ${escapeHtml(author)} • ${formatDate(comment.created_at)}
           </p>
@@ -404,6 +440,7 @@ function renderComments(postId, comments) {
     .join("");
 
   wireCommentVoteControls();
+  wireChirpControls();
 }
 
 function wireCommentVoteControls() {
@@ -450,6 +487,107 @@ function wireCommentVoteControls() {
         }
       } catch (error) {
         alert(`Could not save vote: ${error.message}`);
+        console.error(error);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
+function getChirpStatusLabel(chirpCount) {
+  const count = Number(chirpCount || 0);
+
+  if (count >= 5) return "🚨 Sent to the Box";
+  if (count >= 3) return "⚠ Chirp Watch";
+  if (count > 0) return `Chirps: ${count}`;
+
+  return "";
+}
+
+function getChirpReason() {
+  const choice = window.prompt(
+    [
+      "Why are you chirping this?",
+      "",
+      "1 = Too personal",
+      "2 = Targeted / bullying",
+      "3 = Trash talk went too far",
+      "4 = Spam / trolling",
+      "5 = Other",
+      "",
+      "Enter 1-5:"
+    ].join("\n"),
+    "3"
+  );
+
+  if (choice === null) return null;
+
+  const reasons = {
+    "1": "too_personal",
+    "2": "targeted_bullying",
+    "3": "trash_talk_too_far",
+    "4": "spam_trolling",
+    "5": "other"
+  };
+
+  return reasons[String(choice).trim()] || "other";
+}
+
+async function chirpContent(contentType, contentId) {
+  const reason = getChirpReason();
+
+  if (!reason) return null;
+
+  return fetchJson("/api/chirps", {
+    method: "POST",
+    body: JSON.stringify({
+      content_type: contentType,
+      content_id: contentId,
+      reason
+    })
+  });
+}
+
+function updateChirpButton(button, result) {
+  if (!button || !result) return;
+
+  const count = Number(result.chirp_count || 0);
+  const userChirped = Boolean(result.user_chirped);
+  const label = getChirpStatusLabel(count);
+
+  button.classList.toggle("active", userChirped);
+  button.textContent = userChirped ? `Chirped (${count})` : `Chirp this (${count})`;
+
+  const badgeTarget = button.closest(".post-card, .comment-card")?.querySelector(".chirp-badge");
+
+  if (badgeTarget) {
+    badgeTarget.textContent = label;
+    badgeTarget.hidden = !label;
+  }
+}
+
+function wireChirpControls() {
+  document.querySelectorAll(".chirp-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const contentType = button.dataset.contentType;
+      const contentId = button.dataset.contentId;
+
+      if (!contentType || !contentId) return;
+
+      try {
+        button.disabled = true;
+
+        const result = await chirpContent(contentType, contentId);
+
+        if (result) {
+          updateChirpButton(button, result);
+        }
+      } catch (error) {
+        alert(`Could not chirp this: ${error.message}`);
         console.error(error);
       } finally {
         button.disabled = false;
