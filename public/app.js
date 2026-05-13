@@ -54,12 +54,14 @@ async function fetchJson(url, options = {}) {
 
 async function loadHomepage() {
   try {
-    const [profileData, postsData] = await Promise.all([
+    const [profileData, postsData, karmaData] = await Promise.all([
       fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}`),
-      fetchJson("/api/posts")
+      fetchJson("/api/posts"),
+      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}/karma`)
     ]);
 
     renderProfile(profileData);
+    renderKarma(karmaData);
     renderPosts(postsData.posts || []);
     renderEventsPlaceholder();
     wireForms();
@@ -93,6 +95,16 @@ function renderProfile(data) {
   setText("#stat-assists", stats.assists ?? 0);
   setText("#stat-blocks", stats.blocked_shots ?? 0);
   setText("#stat-sessions", stats.games_played ?? 0);
+}
+
+function renderKarma(data) {
+  const karma = data.karma || {};
+
+  setText("#metric-karma", karma.locker_room_karma ?? 0);
+  setText(
+    "#karma-label",
+    `Locker Room Karma: ${karma.karma_label || "Rookie"}`
+  );
 }
 
 function renderPosts(posts) {
