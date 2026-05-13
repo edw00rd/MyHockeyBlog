@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.5.3",
-        message: "Post creation and tag saving polished. Demo author safety check enabled.",
+        version: "0.6.0",
+        message: "Comments API added. Posts now support D1-backed comments.",
         timestamp: new Date().toISOString()
       });
     }
@@ -36,7 +36,15 @@ export default {
     if (url.pathname === "/api/posts" && method === "POST") {
       return createPost(request, env);
     }
-
+    const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments$/);
+    
+    if (commentsMatch && method === "GET") {
+      return getComments(env, commentsMatch[1]);
+    }
+    
+    if (commentsMatch && method === "POST") {
+      return createComment(request, env, commentsMatch[1]);
+    }
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
         url.pathname.replace("/api/profile/", "").trim()
@@ -127,7 +135,13 @@ async function getPosts(env) {
             ) AS tag_rows
           ),
           ''
-        ) AS tags
+        ) AS tags,
+        (
+          SELECT COUNT(*)
+          FROM comments
+          WHERE comments.post_id = posts.id
+            AND comments.status = 'visible'
+        ) AS comment_count
       FROM posts
       JOIN users ON users.id = posts.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
@@ -254,6 +268,196 @@ async function createPost(request, env) {
       {
         ok: false,
         message: "Failed to create post.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function getComments(env, postId) {
+  try {
+    const post = await env.DB.prepare(
+      `
+      SELECT id, comments_enabled
+      FROM posts
+      WHERE id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(postId)
+      .first();
+
+    if (!post) {
+      return json(
+        {
+          ok: false,
+          error: "Post not found."
+        },
+        404
+      );
+    }
+
+    const result = await env.DB.prepare(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.author_user_id,
+        comments.parent_comment_id,
+        comments.body,
+        comments.score,
+        comments.status,
+        comments.created_at,
+        comments.updated_at,
+        users.display_name AS author_display_name,
+        profiles.username AS author_username
+      FROM comments
+      LEFT JOIN users ON users.id = comments.author_user_id
+      LEFT JOIN profiles ON profiles.user_id = users.id
+      WHERE comments.post_id = ?
+        AND comments.status = 'visible'
+      ORDER BY comments.created_at ASC
+      LIMIT 100
+      `
+    )
+      .bind(postId)
+      .all();
+
+    return json({
+      ok: true,
+      post_id: postId,
+      comments_enabled: Number(post.comments_enabled) === 1,
+      comments: result.results || []
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to load comments.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function createComment(request, env, postId) {
+  try {
+    const body = await readJsonBody(request);
+    const commentBody = String(body.body || "").trim();
+
+    if (!commentBody) {
+      return json(
+        {
+          ok: false,
+          error: "Comment body is required."
+        },
+        400
+      );
+    }
+
+    if (commentBody.length > 1000) {
+      return json(
+        {
+          ok: false,
+          error: "Comment is too long. Keep it under 1000 characters."
+        },
+        400
+      );
+    }
+
+    const post = await env.DB.prepare(
+      `
+      SELECT id, comments_enabled
+      FROM posts
+      WHERE id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(postId)
+      .first();
+
+    if (!post) {
+      return json(
+        {
+          ok: false,
+          error: "Post not found."
+        },
+        404
+      );
+    }
+
+    if (Number(post.comments_enabled) !== 1) {
+      return json(
+        {
+          ok: false,
+          error: "Comments are disabled for this post."
+        },
+        403
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    await ensureDemoAuthor(env, now);
+
+    const commentId = crypto.randomUUID();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO comments (
+        id,
+        post_id,
+        author_user_id,
+        parent_comment_id,
+        body,
+        score,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        commentId,
+        postId,
+        DEMO_USER_ID,
+        null,
+        commentBody,
+        0,
+        "visible",
+        now,
+        now
+      )
+      .run();
+
+    return json(
+      {
+        ok: true,
+        message: "Comment created successfully.",
+        comment: {
+          id: commentId,
+          post_id: postId,
+          author_user_id: DEMO_USER_ID,
+          body: commentBody,
+          score: 0,
+          status: "visible",
+          created_at: now
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to create comment.",
         error: error.message
       },
       500
