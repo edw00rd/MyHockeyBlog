@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.10.0",
-        message: "Chirp Profile added. Chirps now store hockey-tone radar scores.",
+        version: "0.10.1",
+        message: "Chirp Profile context fixed.",
         timestamp: new Date().toISOString()
       });
     }
@@ -803,6 +803,7 @@ async function createChirp(request, env) {
     }
 
     const safeChirpType = allowedChirpTypes.includes(chirpType) ? chirpType : "other";
+    const safeReason = getLegacyReasonForChirpType(safeChirpType);
     const profile = getChirpPresetProfile(safeChirpType);
     const safeNote = note.slice(0, 500);
     const now = new Date().toISOString();
@@ -869,7 +870,6 @@ async function createChirp(request, env) {
       )
         .bind(
           safeChirpType,
-          safeChirpType,
           safeNote,
           profile.helpful_score,
           profile.funny_score,
@@ -910,7 +910,7 @@ async function createChirp(request, env) {
           contentType,
           contentId,
           DEMO_USER_ID,
-          safeChirpType,
+          safeReason,
           safeNote,
           "active",
           safeChirpType,
@@ -946,6 +946,20 @@ async function createChirp(request, env) {
       500
     );
   }
+}
+
+function getLegacyReasonForChirpType(chirpType) {
+  const reasonMap = {
+    good_chirp: "other",
+    tape_to_tape: "other",
+    spicy_but_fair: "trash_talk_too_far",
+    tone_check: "too_personal",
+    cheap_shot: "targeted_bullying",
+    gongshow: "spam_trolling",
+    other: "other"
+  };
+
+  return reasonMap[chirpType] || "other";
 }
 
 function getChirpPresetProfile(chirpType) {
