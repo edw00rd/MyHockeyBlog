@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.8.1",
-        message: "Chirp Watch added. Posts and comments can now be chirped. -replace getPosts fucntion",
+        version: "0.9.0",
+        message: "Locker Room Karma added. Profiles now expose computed karma.",
         timestamp: new Date().toISOString()
       });
     }
@@ -54,6 +54,24 @@ export default {
 
     if (url.pathname === "/api/chirps" && method === "POST") {
       return createChirp(request, env);
+    }
+
+    const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
+    
+    if (karmaMatch && method === "GET") {
+      const username = decodeURIComponent(karmaMatch[1]);
+    
+      if (!username) {
+        return json(
+          {
+            ok: false,
+            error: "Missing username"
+          },
+          400
+        );
+      }
+    
+      return getProfileKarma(env, username);
     }
     
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
@@ -889,6 +907,146 @@ function getChirpStatus(chirpCount) {
   if (chirpCount >= 5) return "sent_to_the_box";
   if (chirpCount >= 3) return "chirp_watch";
   return "normal";
+}
+
+async function getProfileKarma(env, username) {
+  try {
+    if (username === DEMO_USERNAME) {
+      await ensureDemoAuthor(env, new Date().toISOString());
+    }
+
+    const profile = await env.DB.prepare(
+      `
+      SELECT
+        profiles.user_id,
+        profiles.username,
+        profiles.display_name
+      FROM profiles
+      WHERE profiles.username = ?
+        AND profiles.profile_visibility = 'public'
+      LIMIT 1
+      `
+    )
+      .bind(username)
+      .first();
+
+    if (!profile) {
+      return json(
+        {
+          ok: false,
+          error: "Profile not found."
+        },
+        404
+      );
+    }
+
+    const postStats = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS public_posts
+      FROM posts
+      WHERE author_user_id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      `
+    )
+      .bind(profile.user_id)
+      .first();
+
+    const commentStats = await env.DB.prepare(
+      `
+      SELECT
+        COUNT(*) AS visible_comments,
+        COALESCE(SUM(score), 0) AS comment_karma
+      FROM comments
+      WHERE author_user_id = ?
+        AND status = 'visible'
+      `
+    )
+      .bind(profile.user_id)
+      .first();
+
+    const postChirps = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS chirps_on_posts
+      FROM content_chirps
+      WHERE content_type = 'post'
+        AND status = 'active'
+        AND content_id IN (
+          SELECT id
+          FROM posts
+          WHERE author_user_id = ?
+        )
+      `
+    )
+      .bind(profile.user_id)
+      .first();
+
+    const commentChirps = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS chirps_on_comments
+      FROM content_chirps
+      WHERE content_type = 'comment'
+        AND status = 'active'
+        AND content_id IN (
+          SELECT id
+          FROM comments
+          WHERE author_user_id = ?
+        )
+      `
+    )
+      .bind(profile.user_id)
+      .first();
+
+    const publicPosts = Number(postStats?.public_posts || 0);
+    const visibleComments = Number(commentStats?.visible_comments || 0);
+    const commentKarma = Number(commentStats?.comment_karma || 0);
+    const chirpsOnPosts = Number(postChirps?.chirps_on_posts || 0);
+    const chirpsOnComments = Number(commentChirps?.chirps_on_comments || 0);
+    const chirpsReceived = chirpsOnPosts + chirpsOnComments;
+
+    const postKarma = publicPosts;
+    const chirpPenalty = chirpsReceived;
+    const lockerRoomKarma = postKarma + commentKarma - chirpPenalty;
+
+    let karmaLabel = "Rookie";
+
+    if (lockerRoomKarma >= 50) {
+      karmaLabel = "Locker Room Legend";
+    } else if (lockerRoomKarma >= 25) {
+      karmaLabel = "Team Leader";
+    } else if (lockerRoomKarma >= 10) {
+      karmaLabel = "Good Teammate";
+    } else if (lockerRoomKarma < 0) {
+      karmaLabel = "In the Box";
+    }
+
+    return json({
+      ok: true,
+      username: profile.username,
+      display_name: profile.display_name,
+      karma: {
+        locker_room_karma: lockerRoomKarma,
+        karma_label: karmaLabel,
+        post_karma: postKarma,
+        comment_karma: commentKarma,
+        chirp_penalty: chirpPenalty,
+        public_posts: publicPosts,
+        visible_comments: visibleComments,
+        chirps_received: chirpsReceived,
+        chirps_on_posts: chirpsOnPosts,
+        chirps_on_comments: chirpsOnComments
+      }
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to calculate karma.",
+        error: error.message
+      },
+      500
+    );
+  }
 }
 
 async function getProfileByUsername(env, username) {
