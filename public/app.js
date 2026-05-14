@@ -63,7 +63,7 @@ async function loadHomepage() {
     renderProfile(profileData);
     renderKarma(karmaData);
     renderProfileChirpTone(karmaData);
-    renderPosts(postsData.posts || []);;
+    renderPosts(postsData.posts || []);
     renderEventsPlaceholder();
     wireForms();
   } catch (error) {
@@ -246,7 +246,7 @@ function renderPosts(posts) {
                 title="${rentARefReady ? "Rent-a-Ref can make a call." : "Rent-a-Ref already made the latest call. New comment needed."}"
               >
                 Rent-a-Ref
-              </button>
+              </button>`
             : ""
         }
       </div>
@@ -963,9 +963,12 @@ function wireRentARefControls() {
         alert(`Rent-a-Ref missed the call: ${error.message}`);
         console.error(error);
       } finally {
-        button.disabled = false;
-        button.textContent = "Rent-a-Ref";
-      }
+          if (!button.classList.contains("disabled")) {
+            button.disabled = false;
+          }
+        
+          button.textContent = "Rent-a-Ref";
+        }
     });
   });
 }
