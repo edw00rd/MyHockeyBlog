@@ -1,4 +1,6 @@
 const DEMO_USERNAME = "demo-skater";
+const RENT_A_REF_USER_ID = "user_rent_a_ref_001";
+const RENT_A_REF_USERNAME = "rent-a-ref";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -630,6 +632,24 @@ function wireCommentControls() {
   });
 }
 
+function isRentARefComment(comment) {
+  return (
+    comment.author_user_id === RENT_A_REF_USER_ID ||
+    comment.author_username === RENT_A_REF_USERNAME ||
+    comment.author_display_name === "Rent-a-Ref"
+  );
+}
+
+function getRentARefCommentClass(comment) {
+  const reason = String(comment.moderation_reason || "");
+
+  if (reason.includes("red")) return "rent-a-ref-call-red";
+  if (reason.includes("yellow")) return "rent-a-ref-call-yellow";
+  if (reason.includes("green")) return "rent-a-ref-call-green";
+
+  return "rent-a-ref-call-green";
+}
+
 function renderComments(postId, comments) {
   const list = document.querySelector(`#comments-${CSS.escape(postId)}`);
   if (!list) return;
@@ -648,36 +668,22 @@ function renderComments(postId, comments) {
       const chirpLabel = getChirpProfileLabel(comment);
       const chirpProfileHtml = renderChirpProfile(comment);
 
-      return `
-        <div class="comment-card" data-comment-id="${escapeHtml(comment.id)}">
-          <p>${escapeHtml(comment.body)}</p>
+      const rentARefComment = isRentARefComment(comment);
+      const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
 
-          <div class="comment-actions">
-            <button
-              class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
-              type="button"
-              data-comment-id="${escapeHtml(comment.id)}"
-              data-vote-value="1"
-              aria-label="Upvote comment"
-            >
-              ▲
-            </button>
+      const moderationStatus = String(comment.moderation_status || "visible");
+      const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
+      const moderationBannerHtml = !rentARefComment
+        ? renderModerationBanner(comment, "comment")
+        : "";
 
-            <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
-              ${Number(comment.score || 0)}
-            </strong>
-
-            <button
-              class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
-              type="button"
-              data-comment-id="${escapeHtml(comment.id)}"
-              data-vote-value="-1"
-              aria-label="Downvote comment"
-            >
-              ▼
-            </button>
+      const commentChirpControlsHtml = rentARefComment
+        ? `
+          <div class="rent-a-ref-callout">
+            Rent-a-Ref ruling · not eligible for chirps
           </div>
-
+        `
+        : `
           <div class="post-meta">
             <button
               class="button ghost chirp-button ${userChirped ? "active" : ""}"
@@ -696,10 +702,54 @@ function renderComments(postId, comments) {
           <div class="chirp-profile-wrap">
             ${chirpProfileHtml}
           </div>
+        `;
 
-          <p class="muted small">
-            ${escapeHtml(author)} • ${formatDate(comment.created_at)}
-          </p>
+      return `
+        <div
+          class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
+          data-comment-id="${escapeHtml(comment.id)}"
+        >
+          ${moderationBannerHtml}
+
+          <div
+            id="comment-boxed-${escapeHtml(comment.id)}"
+            class="boxed-content"
+            ${commentIsBoxed ? "hidden" : ""}
+          >
+            <p>${escapeHtml(comment.body)}</p>
+
+            <div class="comment-actions">
+              <button
+                class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
+                type="button"
+                data-comment-id="${escapeHtml(comment.id)}"
+                data-vote-value="1"
+                aria-label="Upvote comment"
+              >
+                ▲
+              </button>
+
+              <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
+                ${Number(comment.score || 0)}
+              </strong>
+
+              <button
+                class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
+                type="button"
+                data-comment-id="${escapeHtml(comment.id)}"
+                data-vote-value="-1"
+                aria-label="Downvote comment"
+              >
+                ▼
+              </button>
+            </div>
+
+            ${commentChirpControlsHtml}
+
+            <p class="muted small">
+              ${escapeHtml(author)} • ${formatDate(comment.created_at)}
+            </p>
+          </div>
         </div>
       `;
     })
@@ -707,6 +757,10 @@ function renderComments(postId, comments) {
 
   wireCommentVoteControls();
   wireChirpControls();
+
+  if (typeof wireModerationControls === "function") {
+    wireModerationControls();
+  }
 }
 
 function wireCommentVoteControls() {
