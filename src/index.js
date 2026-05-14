@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.12.1",
-        message: "Rent-a-Ref user creation fixed ",
+        version: "0.12.3",
+        message: "Rent-a-Ref now reopens only when new comments are posted. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -179,6 +179,28 @@ async function getPosts(env) {
             AND comments.status = 'visible'
         ) AS comment_count,
 
+        COALESCE(
+          (
+            SELECT MAX(comments.created_at)
+            FROM comments
+            WHERE comments.post_id = posts.id
+              AND comments.status = 'visible'
+              AND comments.author_user_id = ?
+          ),
+          ''
+        ) AS last_rent_a_ref_at,
+        
+        COALESCE(
+          (
+            SELECT MAX(comments.created_at)
+            FROM comments
+            WHERE comments.post_id = posts.id
+              AND comments.status = 'visible'
+              AND comments.author_user_id <> ?
+          ),
+          ''
+        ) AS last_non_ref_comment_at,
+
         (
           SELECT COUNT(*)
           FROM content_chirps
@@ -275,7 +297,7 @@ async function getPosts(env) {
       LIMIT 25
       `
     )
-      .bind(DEMO_USER_ID)
+      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, DEMO_USER_ID)
       .all();
 
     return json({
@@ -1248,6 +1270,69 @@ async function createRentARefComment(env, postId) {
 
     await ensureRentARefAuthor(env, now);
 
+    const latestRentARefComment = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        created_at
+      FROM comments
+      WHERE post_id = ?
+        AND author_user_id = ?
+        AND status = 'visible'
+      ORDER BY created_at DESC
+      LIMIT 1
+      `
+    )
+      .bind(postId, RENT_A_REF_USER_ID)
+      .first();
+
+    const latestNonRefComment = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        created_at
+      FROM comments
+      WHERE post_id = ?
+        AND author_user_id <> ?
+        AND status = 'visible'
+      ORDER BY created_at DESC
+      LIMIT 1
+      `
+    )
+      .bind(postId, RENT_A_REF_USER_ID)
+      .first();
+
+    const rentARefAlreadyCalled = Boolean(latestRentARefComment);
+
+    const hasNewCommentSinceLastCall =
+      !latestRentARefComment ||
+      (
+        latestNonRefComment &&
+        new Date(latestNonRefComment.created_at).getTime() >
+          new Date(latestRentARefComment.created_at).getTime()
+      );
+
+    const countRowBefore = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS comment_count
+      FROM comments
+      WHERE post_id = ?
+        AND status = 'visible'
+      `
+    )
+      .bind(postId)
+      .first();
+
+    if (!hasNewCommentSinceLastCall) {
+      return json({
+        ok: true,
+        message: "Rent-a-Ref already made the latest call. New comment needed before another call.",
+        already_called: rentARefAlreadyCalled,
+        rent_a_ref_ready: false,
+        comment_count: Number(countRowBefore?.comment_count || 0)
+      });
+    }
+
     const chirpProfile = await getChirpProfile(env, "post", postId);
     const rentARefBody = generateRentARefComment(post, chirpProfile);
     const commentId = crypto.randomUUID();
@@ -1296,6 +1381,8 @@ async function createRentARefComment(env, postId) {
       {
         ok: true,
         message: "Rent-a-Ref made the call.",
+        already_called: false,
+        rent_a_ref_ready: false,
         comment_count: Number(countRow?.comment_count || 0),
         comment: {
           id: commentId,
@@ -1322,7 +1409,6 @@ async function createRentARefComment(env, postId) {
     );
   }
 }
-
 async function ensureRentARefAuthor(env, now) {
   await env.DB.prepare(
     `
