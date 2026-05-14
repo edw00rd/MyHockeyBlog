@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.12.3",
-        message: "Rent-a-Ref now reopens only when new comments are posted. ",
+        version: "0.13.0",
+        message: "Leadership tiers added with Good Teammate, Glue Guy, A, and C. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -1739,6 +1739,16 @@ async function getProfileKarma(env, username) {
       positiveChirpKarma -
       chirpPenalty;
 
+    const leadership = getLeadershipTier({
+      lockerRoomKarma,
+      chirpsReceived,
+      helpfulTotal,
+      funnyTotal,
+      rudeTotal,
+      targetedTotal,
+      spamTotal
+    });
+
     let karmaLabel = "Rookie";
 
     if (lockerRoomKarma >= 100) {
@@ -1760,6 +1770,7 @@ async function getProfileKarma(env, username) {
       karma: {
         locker_room_karma: lockerRoomKarma,
         karma_label: karmaLabel,
+        leadership,
 
         post_karma: postKarma,
         comment_karma: commentKarma,
@@ -1793,6 +1804,81 @@ async function getProfileKarma(env, username) {
       500
     );
   }
+}
+
+function getLeadershipTier({
+  lockerRoomKarma,
+  chirpsReceived,
+  helpfulTotal,
+  funnyTotal,
+  rudeTotal,
+  targetedTotal,
+  spamTotal
+}) {
+  const positiveRoomEnergy = helpfulTotal + funnyTotal;
+  const penaltyEnergy = rudeTotal + targetedTotal * 2 + spamTotal;
+
+  const averagePositive =
+    chirpsReceived > 0 ? positiveRoomEnergy / chirpsReceived : 0;
+
+  const averagePenalty =
+    chirpsReceived > 0 ? penaltyEnergy / chirpsReceived : 0;
+
+  const cleanEnoughForA = averagePenalty <= 2.75;
+  const cleanEnoughForC = averagePenalty <= 1.75;
+
+  if (lockerRoomKarma >= 50 && cleanEnoughForC && averagePositive >= 4) {
+    return {
+      tier: "captain",
+      label: "Captain",
+      letter: "C",
+      name_class: "name-captain",
+      can_review_content: true,
+      can_review_accounts: true
+    };
+  }
+
+  if (lockerRoomKarma >= 25 && cleanEnoughForA) {
+    return {
+      tier: "alternate_captain",
+      label: "Alternate Captain",
+      letter: "A",
+      name_class: "name-alternate-captain",
+      can_review_content: true,
+      can_review_accounts: false
+    };
+  }
+
+  if (lockerRoomKarma >= 10) {
+    return {
+      tier: "glue_guy",
+      label: "Glue Guy",
+      letter: null,
+      name_class: "name-glue-guy",
+      can_review_content: false,
+      can_review_accounts: false
+    };
+  }
+
+  if (lockerRoomKarma >= 3) {
+    return {
+      tier: "good_teammate",
+      label: "Good Teammate",
+      letter: null,
+      name_class: "name-good-teammate",
+      can_review_content: false,
+      can_review_accounts: false
+    };
+  }
+
+  return {
+    tier: "rookie",
+    label: "Rookie",
+    letter: null,
+    name_class: "",
+    can_review_content: false,
+    can_review_accounts: false
+  };
 }
 
 async function getProfileByUsername(env, username) {
