@@ -216,6 +216,90 @@ function isRentARefReady(post) {
     new Date(lastRentARefAt).getTime();
 }
 
+function getModerationMessage(contentType, status, reason) {
+  const label = contentType === "comment" ? "comment" : "post";
+
+  if (status === "under_review") {
+    return {
+      title: "🚨 Sent to the Captain’s Room",
+      body: `This ${label} contains a link or media and was flagged by Rent-a-Ref for review.`
+    };
+  }
+
+  if (reason === "cheap_shot_head_hunting") {
+    return {
+      title: "🚨 Sent to the Box",
+      body: `This ${label} was flagged for Cheap Shot / Head-Hunting energy.`
+    };
+  }
+
+  if (reason === "cheap_shot") {
+    return {
+      title: "🚨 Sent to the Box",
+      body: `This ${label} was flagged for Cheap Shot energy.`
+    };
+  }
+
+  if (reason === "gongshow") {
+    return {
+      title: "🚨 Sent to the Box",
+      body: `This ${label} was flagged for Gongshow energy.`
+    };
+  }
+
+  return {
+    title: "🚨 Sent to the Box",
+    body: `This ${label} was flagged by Rent-a-Ref.`
+  };
+}
+
+function renderModerationBanner(content, contentType = "post") {
+  const status = String(content.moderation_status || "visible");
+  const reason = String(content.moderation_reason || "");
+
+  if (status === "visible") return "";
+
+  const targetId = `${contentType}-boxed-${content.id}`;
+  const message = getModerationMessage(contentType, status, reason);
+
+  return `
+    <div class="box-banner ${status === "under_review" ? "under-review" : "benched"}">
+      <div>
+        <strong>${escapeHtml(message.title)}</strong>
+        <p>${escapeHtml(message.body)}</p>
+      </div>
+
+      <button
+        class="inline-button show-boxed-content"
+        type="button"
+        data-target-id="${escapeHtml(targetId)}"
+      >
+        Show anyway
+      </button>
+    </div>
+  `;
+}
+
+function wireModerationControls() {
+  document.querySelectorAll(".show-boxed-content").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", () => {
+      const targetId = button.dataset.targetId;
+      if (!targetId) return;
+
+      const target = document.querySelector(`#${CSS.escape(targetId)}`);
+      if (!target) return;
+
+      const shouldShow = target.hidden;
+
+      target.hidden = !shouldShow;
+      button.textContent = shouldShow ? "Hide again" : "Show anyway";
+    });
+  });
+}
+
 function renderPosts(posts) {
   const container = $("#post-list");
   if (!container) return;
@@ -253,6 +337,9 @@ function renderPosts(posts) {
     const chirpLabel = getChirpProfileLabel(post);
     const chirpProfileHtml = renderChirpProfile(post);
     const rentARefReady = isRentARefReady(post);
+    const moderationStatus = String(post.moderation_status || "visible");
+    const postIsBoxed = moderationStatus !== "visible";
+    const moderationBannerHtml = renderModerationBanner(post, "post");
 
     card.innerHTML = `
       <div class="post-meta">
@@ -263,10 +350,17 @@ function renderPosts(posts) {
       </div>
 
       <h3>${escapeHtml(post.title || "Untitled post")}</h3>
-
-      <p class="muted">${escapeHtml(post.body || "")}</p>
-
-      ${tagsHtml}
+      
+      ${moderationBannerHtml}
+      
+      <div
+        id="post-boxed-${escapeHtml(post.id)}"
+        class="boxed-content"
+        ${postIsBoxed ? "hidden" : ""}
+      >
+        <p class="muted">${escapeHtml(post.body || "")}</p>
+      
+        ${tagsHtml}
 
       <div class="post-meta">
         <button
@@ -325,6 +419,7 @@ function renderPosts(posts) {
             : `<p class="muted small">Comments are disabled for this post.</p>`
         }
       </div>
+    </div>
     `;
 
     container.appendChild(card);
@@ -333,6 +428,7 @@ function renderPosts(posts) {
   wireCommentControls();
   wireChirpControls();
   wireRentARefControls();
+  wireModerationControls();
 }
 
 function renderEventsPlaceholder() {
