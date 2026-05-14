@@ -959,17 +959,3 @@ textarea:focus {
     0 0 0 1px rgba(255, 43, 43, 0.28) inset,
     0 0 20px rgba(255, 43, 43, 0.14);
 }
-
-.rent-a-ref-callout {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  margin-top: 0.45rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  padding: 0.22rem 0.55rem;
-  color: rgba(255, 255, 255, 0.72);
-  background: rgba(5, 11, 20, 0.48);
-  font-size: 0.76rem;
-  font-weight: 850;
-}
