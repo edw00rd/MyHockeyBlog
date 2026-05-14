@@ -19,8 +19,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.10.3",
-        message: "Chirp Profile scores now display for posts and comments.",
+        version: "0.11.0",
+        message: "Locker Room Karma now uses Chirp Profile scores.",
         timestamp: new Date().toISOString()
       });
     }
@@ -1281,21 +1281,82 @@ async function getProfileKarma(env, username) {
       .bind(profile.user_id)
       .first();
 
+    const chirpProfileStats = await env.DB.prepare(
+      `
+      SELECT
+        COUNT(*) AS active_chirps_received,
+        COALESCE(SUM(helpful_score), 0) AS helpful_score_sum,
+        COALESCE(SUM(funny_score), 0) AS funny_score_sum,
+        COALESCE(SUM(heat_score), 0) AS heat_score_sum,
+        COALESCE(SUM(rude_score), 0) AS rude_score_sum,
+        COALESCE(SUM(targeted_score), 0) AS targeted_score_sum,
+        COALESCE(SUM(spam_score), 0) AS spam_score_sum
+      FROM content_chirps
+      WHERE status = 'active'
+        AND (
+          (
+            content_type = 'post'
+            AND content_id IN (
+              SELECT id
+              FROM posts
+              WHERE author_user_id = ?
+            )
+          )
+          OR
+          (
+            content_type = 'comment'
+            AND content_id IN (
+              SELECT id
+              FROM comments
+              WHERE author_user_id = ?
+            )
+          )
+        )
+      `
+    )
+      .bind(profile.user_id, profile.user_id)
+      .first();
+
     const publicPosts = Number(postStats?.public_posts || 0);
     const visibleComments = Number(commentStats?.visible_comments || 0);
     const commentKarma = Number(commentStats?.comment_karma || 0);
+
     const chirpsOnPosts = Number(postChirps?.chirps_on_posts || 0);
     const chirpsOnComments = Number(commentChirps?.chirps_on_comments || 0);
-    const chirpsReceived = chirpsOnPosts + chirpsOnComments;
+    const chirpsReceived = Number(chirpProfileStats?.active_chirps_received || 0);
+
+    const helpfulTotal = Number(chirpProfileStats?.helpful_score_sum || 0);
+    const funnyTotal = Number(chirpProfileStats?.funny_score_sum || 0);
+    const heatTotal = Number(chirpProfileStats?.heat_score_sum || 0);
+    const rudeTotal = Number(chirpProfileStats?.rude_score_sum || 0);
+    const targetedTotal = Number(chirpProfileStats?.targeted_score_sum || 0);
+    const spamTotal = Number(chirpProfileStats?.spam_score_sum || 0);
 
     const postKarma = publicPosts;
-    const chirpPenalty = chirpsReceived;
-    const lockerRoomKarma = postKarma + commentKarma - chirpPenalty;
+
+    const positiveChirpKarma = Math.round(
+      helpfulTotal * 0.35 +
+      funnyTotal * 0.25
+    );
+
+    const chirpPenalty = Math.round(
+      rudeTotal * 0.6 +
+      targetedTotal * 1.2 +
+      spamTotal * 0.8
+    );
+
+    const lockerRoomKarma =
+      postKarma +
+      commentKarma +
+      positiveChirpKarma -
+      chirpPenalty;
 
     let karmaLabel = "Rookie";
 
-    if (lockerRoomKarma >= 50) {
+    if (lockerRoomKarma >= 100) {
       karmaLabel = "Locker Room Legend";
+    } else if (lockerRoomKarma >= 50) {
+      karmaLabel = "Captain Material";
     } else if (lockerRoomKarma >= 25) {
       karmaLabel = "Team Leader";
     } else if (lockerRoomKarma >= 10) {
@@ -1311,14 +1372,27 @@ async function getProfileKarma(env, username) {
       karma: {
         locker_room_karma: lockerRoomKarma,
         karma_label: karmaLabel,
+
         post_karma: postKarma,
         comment_karma: commentKarma,
+        positive_chirp_karma: positiveChirpKarma,
         chirp_penalty: chirpPenalty,
+
         public_posts: publicPosts,
         visible_comments: visibleComments,
+
         chirps_received: chirpsReceived,
         chirps_on_posts: chirpsOnPosts,
-        chirps_on_comments: chirpsOnComments
+        chirps_on_comments: chirpsOnComments,
+
+        chirp_profile_totals: {
+          tape_to_tape: helpfulTotal,
+          laughs: funnyTotal,
+          heat: heatTotal,
+          cheap_shot: rudeTotal,
+          head_hunting: targetedTotal,
+          gongshow: spamTotal
+        }
       }
     });
   } catch (error) {
