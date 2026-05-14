@@ -762,6 +762,16 @@ async function voteOnComment(request, env, commentId) {
       );
     }
 
+    if (comment.author_user_id === RENT_A_REF_USER_ID) {
+      return json(
+        {
+          ok: false,
+          error: "Rent-a-Ref comments cannot be voted on."
+        },
+        403
+      );
+    }
+
     const now = new Date().toISOString();
 
     await ensureDemoAuthor(env, now);
