@@ -157,6 +157,20 @@ function renderProfileChirpTone(data) {
   `;
 }
 
+function isRentARefReady(post) {
+  if (Number(post.comments_enabled) !== 1) return false;
+
+  const lastRentARefAt = post.last_rent_a_ref_at || "";
+  const lastNonRefCommentAt = post.last_non_ref_comment_at || "";
+
+  if (!lastRentARefAt) return true;
+
+  if (!lastNonRefCommentAt) return false;
+
+  return new Date(lastNonRefCommentAt).getTime() >
+    new Date(lastRentARefAt).getTime();
+}
+
 function renderPosts(posts) {
   const container = $("#post-list");
   if (!container) return;
@@ -193,6 +207,7 @@ function renderPosts(posts) {
     const userChirped = Number(post.user_chirped || 0) === 1;
     const chirpLabel = getChirpProfileLabel(post);
     const chirpProfileHtml = renderChirpProfile(post);
+    const rentARefReady = isRentARefReady(post);
 
     card.innerHTML = `
       <div class="post-meta">
@@ -224,12 +239,14 @@ function renderPosts(posts) {
         ${
           Number(post.comments_enabled) === 1
             ? `<button
-                class="button ghost rent-a-ref-button"
+                class="button ghost rent-a-ref-button ${rentARefReady ? "" : "disabled"}"
                 type="button"
                 data-post-id="${escapeHtml(post.id)}"
+                ${rentARefReady ? "" : "disabled"}
+                title="${rentARefReady ? "Rent-a-Ref can make a call." : "Rent-a-Ref already made the latest call. New comment needed."}"
               >
                 Rent-a-Ref
-              </button>`
+              </button>
             : ""
         }
       </div>
@@ -924,6 +941,12 @@ function wireRentARefControls() {
 
         if (toggle && result.comment_count !== undefined) {
           toggle.textContent = `Comments (${Number(result.comment_count || 0)})`;
+        }
+
+        if (result.rent_a_ref_ready === false) {
+          button.disabled = true;
+          button.classList.add("disabled");
+          button.title = "Rent-a-Ref already made the latest call. New comment needed.";
         }
 
         if (list) {
