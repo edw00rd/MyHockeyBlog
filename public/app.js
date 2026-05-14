@@ -216,13 +216,35 @@ function isRentARefReady(post) {
     new Date(lastRentARefAt).getTime();
 }
 
+function pickRandomLine(lines) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return "";
+  }
+
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
 function getModerationMessage(contentType, status, reason) {
   const label = contentType === "comment" ? "comment" : "post";
 
   if (status === "under_review") {
     return {
-      title: "🚨 Sent to the Captain’s Room",
-      body: `This ${label} contains a link or media and was flagged by Rent-a-Ref for review.`
+      title: pickRandomLine([
+        "🚨 Sent Upstairs for Review",
+        "🚨 Sent to the Situation Room",
+        "🚨 Under Review on the Play",
+        "🚨 The Play is Under Review",
+        "🚨 Sent to Toronto",
+        "🚨 Situation Room Review",
+        "🚨 Review on the Play",
+        "🚨 Sent Upstairs: Review on the Play"
+      ]),
+      body: pickRandomLine([
+        `This ${label} contains a link or media and was flagged by Rent-a-Ref for review on the play.`,
+        `This ${label} has link/media risk and is waiting for a closer look.`,
+        `Rent-a-Ref saw a link or media on the play and kicked this one upstairs.`,
+        `This ${label} was flagged for review because links or media need human eyes.`
+      ])
     };
   }
 
