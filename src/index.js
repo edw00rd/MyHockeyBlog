@@ -1,6 +1,9 @@
 const DEMO_USER_ID = "user_demo_001";
 const DEMO_PROFILE_ID = "profile_demo_001";
 const DEMO_USERNAME = "demo-skater";
+const RENT_A_REF_USER_ID = "user_rent_a_ref_001";
+const RENT_A_REF_PROFILE_ID = "profile_rent_a_ref_001";
+const RENT_A_REF_USERNAME = "rent-a-ref";
 
 export default {
   async fetch(request, env, ctx) {
@@ -19,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.11.0",
-        message: "Locker Room Karma now uses Chirp Profile scores.",
+        version: "0.12.0",
+        message: "Rent-a-Ref v1 added. Rule-based bot comments now work. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -54,6 +57,12 @@ export default {
 
     if (url.pathname === "/api/chirps" && method === "POST") {
       return createChirp(request, env);
+    }
+
+    const rentARefMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/rent-a-ref$/);
+    
+    if (rentARefMatch && method === "POST") {
+      return createRentARefComment(env, rentARefMatch[1]);
     }
 
     const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
@@ -1191,6 +1200,298 @@ function getChirpStatus(chirpCount) {
   if (chirpCount >= 5) return "sent_to_the_box";
   if (chirpCount >= 3) return "chirp_watch";
   return "normal";
+}
+
+async function createRentARefComment(env, postId) {
+  try {
+    const post = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        title,
+        body,
+        post_type,
+        comments_enabled,
+        visibility,
+        status
+      FROM posts
+      WHERE id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(postId)
+      .first();
+
+    if (!post) {
+      return json(
+        {
+          ok: false,
+          error: "Post not found."
+        },
+        404
+      );
+    }
+
+    if (Number(post.comments_enabled) !== 1) {
+      return json(
+        {
+          ok: false,
+          error: "Rent-a-Ref cannot comment because comments are disabled for this post."
+        },
+        403
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    await ensureRentARefAuthor(env, now);
+
+    const chirpProfile = await getChirpProfile(env, "post", postId);
+    const rentARefBody = generateRentARefComment(post, chirpProfile);
+    const commentId = crypto.randomUUID();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO comments (
+        id,
+        post_id,
+        author_user_id,
+        parent_comment_id,
+        body,
+        score,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        commentId,
+        postId,
+        RENT_A_REF_USER_ID,
+        null,
+        rentARefBody,
+        0,
+        "visible",
+        now,
+        now
+      )
+      .run();
+
+    const countRow = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS comment_count
+      FROM comments
+      WHERE post_id = ?
+        AND status = 'visible'
+      `
+    )
+      .bind(postId)
+      .first();
+
+    return json(
+      {
+        ok: true,
+        message: "Rent-a-Ref made the call.",
+        comment_count: Number(countRow?.comment_count || 0),
+        comment: {
+          id: commentId,
+          post_id: postId,
+          author_user_id: RENT_A_REF_USER_ID,
+          author_display_name: "Rent-a-Ref",
+          author_username: RENT_A_REF_USERNAME,
+          body: rentARefBody,
+          score: 0,
+          status: "visible",
+          created_at: now
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to summon Rent-a-Ref.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function ensureRentARefAuthor(env, now) {
+  await env.DB.prepare(
+    `
+    INSERT OR IGNORE INTO users (
+      id,
+      email,
+      display_name,
+      auth_provider,
+      auth_provider_user_id,
+      role,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      RENT_A_REF_USER_ID,
+      "rent-a-ref@example.com",
+      "Rent-a-Ref",
+      "system",
+      "rent-a-ref-bot-001",
+      "bot",
+      now,
+      now
+    )
+    .run();
+
+  await env.DB.prepare(
+    `
+    INSERT OR IGNORE INTO profiles (
+      id,
+      user_id,
+      username,
+      display_name,
+      bio,
+      position,
+      shoots,
+      jersey_number,
+      team_name,
+      home_rink,
+      skill_level,
+      profile_visibility,
+      show_stats_publicly,
+      show_calendar_publicly,
+      allow_post_tagging,
+      allow_media_tagging,
+      require_tag_approval,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      RENT_A_REF_PROFILE_ID,
+      RENT_A_REF_USER_ID,
+      RENT_A_REF_USERNAME,
+      "Rent-a-Ref",
+      "Cheap whistle. Expensive opinions.",
+      "Ref",
+      null,
+      "2",
+      "Beer League Officiating",
+      "Late Game Rink",
+      "Questionable",
+      "public",
+      1,
+      1,
+      0,
+      0,
+      0,
+      now,
+      now
+    )
+    .run();
+}
+
+function generateRentARefComment(post, chirpProfile) {
+  const status = chirpProfile.chirp_status || "normal";
+  const chirpCount = Number(chirpProfile.chirp_count || 0);
+
+  const helpful = Number(chirpProfile.helpful_score || 0);
+  const funny = Number(chirpProfile.funny_score || 0);
+  const heat = Number(chirpProfile.heat_score || 0);
+  const rude = Number(chirpProfile.rude_score || 0);
+  const targeted = Number(chirpProfile.targeted_score || 0);
+  const spam = Number(chirpProfile.spam_score || 0);
+
+  if (chirpCount === 0) {
+    return pickRentARefLine(post.id, [
+      "No chirps on the sheet yet. Clean enough for beer league. Play on.",
+      "No penalty on the play. Little late-game energy, but we skate on.",
+      "I’ve seen worse at 10:45 with one ref and a foggy visor. Play on."
+    ]);
+  }
+
+  if (spam >= 4 || status === "gongshow") {
+    return pickRentARefLine(post.id, [
+      "This is drifting into full gongshow territory. Somebody find the puck and settle it down.",
+      "That’s a lot of noise for not much hockey. I’m calling this one a rink-lobby argument.",
+      "Gongshow energy detected. No goal, no assist, no useful contribution."
+    ]);
+  }
+
+  if ((rude >= 4 && targeted >= 3) || status === "ref_review") {
+    return pickRentARefLine(post.id, [
+      "Whistle’s up. That’s looking personal, and I’m not letting beer league turn into court testimony.",
+      "Targeting the player instead of the play. That’s getting a whistle.",
+      "Keep it about the hockey. Once it gets personal, you’re skating toward the box."
+    ]);
+  }
+
+  if (rude >= 4 || status === "cheap_shot") {
+    return pickRentARefLine(post.id, [
+      "That one’s a cheap shot. Two minutes for making it weird.",
+      "Plenty of heat, not enough class. I’ve got that as a minor for unnecessary nonsense.",
+      "You can chirp the play without running the goalie. Clean it up."
+    ]);
+  }
+
+  if (rude >= 3 || targeted >= 2 || status === "tone_check") {
+    return pickRentARefLine(post.id, [
+      "Tone check. You’re not in the box yet, but you’re leaning over the boards.",
+      "I’m letting it go, but keep the elbows tucked. This is beer league, not arbitration.",
+      "Little close to the line. Keep it funny or keep it moving."
+    ]);
+  }
+
+  if (heat >= 4 && rude <= 2) {
+    return pickRentARefLine(post.id, [
+      "Spicy, but still inside the dots. No call. Play on.",
+      "There’s heat on that one, but the elbows are down. I’m letting it go.",
+      "Hot take, clean lane. No penalty unless someone starts whining."
+    ]);
+  }
+
+  if (helpful >= 4 || status === "tape_to_tape") {
+    return pickRentARefLine(post.id, [
+      "That’s tape-to-tape. Actual useful feedback in a beer league thread. Rare, but I’ll allow it.",
+      "Clean feed. Helpful, direct, and nobody had to throw a glove. Play on.",
+      "That one connected. Good pass, good point, no whistle."
+    ]);
+  }
+
+  if (funny >= 4 || status === "good_chirp") {
+    return pickRentARefLine(post.id, [
+      "Clean chirp. Got a laugh, stayed inside the glass. Play on.",
+      "Good chirp. Little mustard, no penalty. Keep skating.",
+      "That’s legal banter. I checked the rulebook I keep under the coffee cup."
+    ]);
+  }
+
+  return pickRentARefLine(post.id, [
+    "I don’t hate it. I don’t love it. That’s beer league officiating, baby. Play on.",
+    "No call. Everyone gets one before I start pretending this whistle works.",
+    "Marginal contact, questionable chirp, acceptable chaos. Play on."
+  ]);
+}
+
+function pickRentARefLine(seed, lines) {
+  const value = String(seed || "rent-a-ref");
+  let hash = 0;
+
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+
+  return lines[hash % lines.length];
 }
 
 async function getProfileKarma(env, username) {
