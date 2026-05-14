@@ -747,3 +747,22 @@ textarea:focus {
   font-size: 0.72rem;
   padding: 0.22rem 0.5rem;
 }
+
+.rent-a-ref-button {
+  border-color: rgba(255, 230, 0, 0.55) !important;
+  color: #ffe600 !important;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 230, 0, 0.12),
+      rgba(5, 11, 20, 0.84)
+    ) !important;
+  box-shadow: 0 0 12px rgba(255, 230, 0, 0.08);
+}
+
+.rent-a-ref-button:hover {
+  border-color: rgba(255, 230, 0, 0.9) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 0, 0.45) inset,
+    0 0 16px rgba(255, 230, 0, 0.15);
+}
