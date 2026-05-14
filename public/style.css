@@ -695,3 +695,55 @@ textarea:focus {
     justify-content: flex-start;
   }
 }
+
+.profile-chirp-profile {
+  margin-top: 0.35rem;
+}
+
+.profile-tone-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.profile-tone-empty {
+  margin-top: 0.5rem;
+  border: 1px dashed rgba(159, 177, 200, 0.22);
+  border-radius: 0.85rem;
+  padding: 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  background: rgba(5, 11, 20, 0.42);
+}
+
+.profile-card .chirp-profile {
+  margin-top: 0.5rem;
+  padding: 0.65rem;
+  box-shadow: none;
+}
+
+.profile-card .chirp-profile-visual {
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+.profile-card .chirp-radar {
+  justify-content: flex-start;
+}
+
+.profile-card .chirp-radar svg {
+  width: clamp(88px, 24vw, 110px);
+  height: clamp(88px, 24vw, 110px);
+}
+
+.profile-card .chirp-profile-grid {
+  gap: 0.35rem;
+}
+
+.profile-card .chirp-score {
+  font-size: 0.72rem;
+  padding: 0.22rem 0.5rem;
+}
