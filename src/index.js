@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.13.0",
-        message: "Leadership tiers added with Good Teammate, Glue Guy, A, and C. ",
+        version: "0.14.0",
+        message: "Sent to the Box backend moderation state added. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -157,6 +157,10 @@ async function getPosts(env) {
         posts.published_at,
         posts.created_at,
         posts.updated_at,
+        COALESCE(posts.moderation_status, 'visible') AS moderation_status,
+        COALESCE(posts.moderation_reason, '') AS moderation_reason,
+        posts.moderated_at,
+        posts.moderated_by_user_id,
         users.display_name AS author_display_name,
         profiles.username AS author_username,
         profiles.position AS author_position,
@@ -460,6 +464,10 @@ async function getComments(env, postId) {
         comments.status,
         comments.created_at,
         comments.updated_at,
+        COALESCE(comments.moderation_status, 'visible') AS moderation_status,
+        COALESCE(comments.moderation_reason, '') AS moderation_reason,
+        comments.moderated_at,
+        comments.moderated_by_user_id,
         users.display_name AS author_display_name,
         profiles.username AS author_username,
 
@@ -1335,6 +1343,31 @@ async function createRentARefComment(env, postId) {
     }
 
     const chirpProfile = await getChirpProfile(env, "post", postId);
+    const moderationDecision = getRentARefModerationDecision(post, chirpProfile);
+    
+    if (moderationDecision.moderation_status !== "visible") {
+      await env.DB.prepare(
+        `
+        UPDATE posts
+        SET moderation_status = ?,
+            moderation_reason = ?,
+            moderated_at = ?,
+            moderated_by_user_id = ?,
+            updated_at = ?
+        WHERE id = ?
+        `
+      )
+        .bind(
+          moderationDecision.moderation_status,
+          moderationDecision.moderation_reason,
+          now,
+          RENT_A_REF_USER_ID,
+          now,
+          postId
+        )
+        .run();
+    }
+    
     const rentARefBody = generateRentARefComment(post, chirpProfile);
     const commentId = crypto.randomUUID();
 
@@ -1385,6 +1418,7 @@ async function createRentARefComment(env, postId) {
         already_called: false,
         rent_a_ref_ready: false,
         comment_count: Number(countRow?.comment_count || 0),
+        moderation: moderationDecision,
         comment: {
           id: commentId,
           post_id: postId,
@@ -1568,6 +1602,68 @@ function generateRentARefComment(post, chirpProfile) {
     "No call. Everyone gets one before I start pretending this whistle works.",
     "Marginal contact, questionable chirp, acceptable chaos. Play on."
   ]);
+}
+
+function getRentARefModerationDecision(content, chirpProfile) {
+  const status = chirpProfile.chirp_status || "normal";
+
+  const rude = Number(chirpProfile.rude_score || 0);
+  const targeted = Number(chirpProfile.targeted_score || 0);
+  const spam = Number(chirpProfile.spam_score || 0);
+
+  const hasExternalRisk = contentHasLinkOrMedia(content);
+
+  const isGongshow = spam >= 4 || status === "gongshow";
+  const isCheapShot = rude >= 4 || status === "cheap_shot";
+  const isHeadHunting =
+    targeted >= 3 ||
+    status === "ref_review" ||
+    (rude >= 4 && targeted >= 2);
+
+  const shouldModerate = isGongshow || isCheapShot || isHeadHunting;
+
+  if (!shouldModerate) {
+    return {
+      moderation_status: "visible",
+      moderation_reason: ""
+    };
+  }
+
+  let reason = "poor_chirp_profile";
+
+  if (isHeadHunting) {
+    reason = "cheap_shot_head_hunting";
+  } else if (isCheapShot) {
+    reason = "cheap_shot";
+  } else if (isGongshow) {
+    reason = "gongshow";
+  }
+
+  if (hasExternalRisk) {
+    return {
+      moderation_status: "under_review",
+      moderation_reason: `${reason}_with_link_or_media`
+    };
+  }
+
+  return {
+    moderation_status: "benched",
+    moderation_reason: reason
+  };
+}
+
+function contentHasLinkOrMedia(content) {
+  const text = [
+    content.title,
+    content.body,
+    content.media_url,
+    content.video_url,
+    content.url
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return /(https?:\/\/|www\.|youtu\.be|youtube\.com|tiktok\.com|instagram\.com|x\.com|twitter\.com|\.com\b|\.net\b|\.org\b|\.io\b)/i.test(text);
 }
 
 function pickRentARefLine(seed, lines) {
