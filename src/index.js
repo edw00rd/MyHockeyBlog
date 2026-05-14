@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.12.0",
-        message: "Rent-a-Ref v1 added. Rule-based bot comments now work. ",
+        version: "0.12.1",
+        message: "Rent-a-Ref user creation fixed ",
         timestamp: new Date().toISOString()
       });
     }
@@ -1345,7 +1345,7 @@ async function ensureRentARefAuthor(env, now) {
       "Rent-a-Ref",
       "system",
       "rent-a-ref-bot-001",
-      "bot",
+      "user",
       now,
       now
     )
