@@ -671,6 +671,36 @@ function renderComments(postId, comments) {
       const rentARefComment = isRentARefComment(comment);
       const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
 
+      const commentVoteControlsHtml = rentARefComment
+        ? ""
+        : `
+          <div class="comment-actions">
+            <button
+              class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
+              type="button"
+              data-comment-id="${escapeHtml(comment.id)}"
+              data-vote-value="1"
+              aria-label="Upvote comment"
+            >
+              ▲
+            </button>
+      
+            <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
+              ${Number(comment.score || 0)}
+            </strong>
+      
+            <button
+              class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
+              type="button"
+              data-comment-id="${escapeHtml(comment.id)}"
+              data-vote-value="-1"
+              aria-label="Downvote comment"
+            >
+              ▼
+            </button>
+          </div>
+        `;
+      
       const moderationStatus = String(comment.moderation_status || "visible");
       const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
       const moderationBannerHtml = !rentARefComment
@@ -678,11 +708,7 @@ function renderComments(postId, comments) {
         : "";
 
       const commentChirpControlsHtml = rentARefComment
-        ? `
-          <div class="rent-a-ref-callout">
-            Rent-a-Ref ruling · not eligible for chirps
-          </div>
-        `
+        ?""
         : `
           <div class="post-meta">
             <button
@@ -718,31 +744,7 @@ function renderComments(postId, comments) {
           >
             <p>${escapeHtml(comment.body)}</p>
 
-            <div class="comment-actions">
-              <button
-                class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
-                type="button"
-                data-comment-id="${escapeHtml(comment.id)}"
-                data-vote-value="1"
-                aria-label="Upvote comment"
-              >
-                ▲
-              </button>
-
-              <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
-                ${Number(comment.score || 0)}
-              </strong>
-
-              <button
-                class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
-                type="button"
-                data-comment-id="${escapeHtml(comment.id)}"
-                data-vote-value="-1"
-                aria-label="Downvote comment"
-              >
-                ▼
-              </button>
-            </div>
+            ${commentVoteControlsHtml}
 
             ${commentChirpControlsHtml}
 
