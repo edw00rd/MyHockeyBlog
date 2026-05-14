@@ -22,7 +22,7 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.15.0",
+        version: "0.15.1",
         message: "RRent-a-Ref comments are protected and styled by call type. ",
         timestamp: new Date().toISOString()
       });
