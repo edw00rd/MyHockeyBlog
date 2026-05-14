@@ -783,3 +783,66 @@ textarea:focus {
   border-color: rgba(159, 177, 200, 0.22) !important;
   box-shadow: none !important;
 }
+
+.profile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.profile-leadership-note {
+  margin: 0.25rem 0 0;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.name-good-teammate {
+  text-shadow: 0 0 8px rgba(0, 200, 255, 0.22);
+}
+
+.name-glue-guy {
+  text-shadow:
+    0 0 8px rgba(0, 200, 255, 0.36),
+    0 0 18px rgba(0, 255, 200, 0.18);
+}
+
+.name-alternate-captain,
+.name-captain {
+  text-shadow:
+    0 0 10px rgba(0, 200, 255, 0.36),
+    0 0 22px rgba(0, 255, 200, 0.16);
+}
+
+.leadership-letter {
+  display: inline-grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  border-radius: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  transform: skew(-8deg);
+}
+
+.leadership-alternate_captain {
+  border: 1px solid rgba(0, 200, 255, 0.78);
+  color: #00c8ff;
+  background:
+    linear-gradient(135deg, rgba(0, 200, 255, 0.18), rgba(5, 11, 20, 0.88));
+  box-shadow:
+    0 0 0 1px rgba(0, 200, 255, 0.28) inset,
+    0 0 14px rgba(0, 200, 255, 0.16);
+}
+
+.leadership-captain {
+  border: 1px solid rgba(255, 230, 0, 0.88);
+  color: #ffe600;
+  background:
+    linear-gradient(135deg, rgba(255, 230, 0, 0.18), rgba(5, 11, 20, 0.9));
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 0, 0.34) inset,
+    0 0 16px rgba(255, 230, 0, 0.18);
+}
