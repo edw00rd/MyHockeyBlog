@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.14.1",
-        message: "Rent-a-Ref and review banner now rotate randomly. ",
+        version: "0.15.0",
+        message: "RRent-a-Ref comments are protected and styled by call type. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -1212,15 +1212,16 @@ async function verifyChirpContentExists(env, contentType, contentId) {
       FROM comments
       JOIN posts ON posts.id = comments.post_id
       WHERE comments.id = ?
+        AND comments.author_user_id <> ?
         AND comments.status = 'visible'
         AND posts.visibility = 'public'
         AND posts.status = 'published'
       LIMIT 1
       `
     )
-      .bind(contentId)
+      .bind(contentId, RENT_A_REF_USER_ID)
       .first();
-
+  
     return Boolean(comment);
   }
 
@@ -1344,6 +1345,7 @@ async function createRentARefComment(env, postId) {
 
     const chirpProfile = await getChirpProfile(env, "post", postId);
     const moderationDecision = getRentARefModerationDecision(post, chirpProfile);
+    const rentARefTone = getRentARefCallTone(moderationDecision, chirpProfile);
     
     if (moderationDecision.moderation_status !== "visible") {
       await env.DB.prepare(
@@ -1381,10 +1383,14 @@ async function createRentARefComment(env, postId) {
         body,
         score,
         status,
+        moderation_status,
+        moderation_reason,
+        moderated_at,
+        moderated_by_user_id,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
       .bind(
@@ -1395,6 +1401,10 @@ async function createRentARefComment(env, postId) {
         rentARefBody,
         0,
         "visible",
+        "visible",
+        `rent_a_ref_${rentARefTone}`,
+        now,
+        RENT_A_REF_USER_ID,
         now,
         now
       )
@@ -1428,6 +1438,8 @@ async function createRentARefComment(env, postId) {
           body: rentARefBody,
           score: 0,
           status: "visible",
+          moderation_status: "visible",
+          moderation_reason: `rent_a_ref_${rentARefTone}`,
           created_at: now
         }
       },
@@ -1644,6 +1656,20 @@ function generateRentARefComment(post, chirpProfile, moderationDecision = null) 
     "I’m not sure what that was, but it wasn’t enough paperwork for a penalty.",
     "We’re moving on before somebody asks me to explain the rulebook."
   ]);
+}
+
+function getRentARefCallTone(moderationDecision, chirpProfile) {
+  const moderationStatus = moderationDecision?.moderation_status || "visible";
+  const chirpStatus = chirpProfile?.chirp_status || "normal";
+
+  if (moderationStatus === "benched") return "red";
+  if (moderationStatus === "under_review") return "yellow";
+
+  if (["tone_check", "ref_review", "cheap_shot", "gongshow"].includes(chirpStatus)) {
+    return "yellow";
+  }
+
+  return "green";
 }
 
 function getRentARefModerationDecision(content, chirpProfile) {
