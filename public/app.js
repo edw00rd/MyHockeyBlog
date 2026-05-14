@@ -62,6 +62,7 @@ async function loadHomepage() {
 
     renderProfile(profileData);
     renderKarma(karmaData);
+    renderLeadership(karmaData);
     renderProfileChirpTone(karmaData);
     renderPosts(postsData.posts || []);
     renderEventsPlaceholder();
@@ -106,6 +107,50 @@ function renderKarma(data) {
     "#karma-label",
     `Locker Room Karma: ${karma.karma_label || "Rookie"}`
   );
+}
+
+function renderLeadership(data) {
+  const leadership = data.karma?.leadership || {};
+  const profileName = $("#profile-name");
+  const letter = $("#leadership-letter");
+  const note = $("#leadership-note");
+
+  if (profileName) {
+    profileName.classList.remove(
+      "name-good-teammate",
+      "name-glue-guy",
+      "name-alternate-captain",
+      "name-captain"
+    );
+
+    if (leadership.name_class) {
+      profileName.classList.add(leadership.name_class);
+    }
+  }
+
+  if (letter) {
+    if (leadership.letter) {
+      letter.textContent = leadership.letter;
+      letter.hidden = false;
+      letter.className = `leadership-letter leadership-${leadership.tier}`;
+    } else {
+      letter.textContent = "";
+      letter.hidden = true;
+      letter.className = "leadership-letter";
+    }
+  }
+
+  if (note) {
+    if (leadership.tier && leadership.tier !== "rookie") {
+      note.textContent = leadership.letter
+        ? `${leadership.label} · Leadership Group`
+        : leadership.label;
+      note.hidden = false;
+    } else {
+      note.textContent = "";
+      note.hidden = true;
+    }
+  }
 }
 
 function buildProfileChirpProfileFromKarma(data) {
