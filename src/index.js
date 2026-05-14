@@ -189,7 +189,7 @@ async function getPosts(env) {
           ),
           ''
         ) AS last_rent_a_ref_at,
-        
+
         COALESCE(
           (
             SELECT MAX(comments.created_at)
@@ -315,6 +315,7 @@ async function getPosts(env) {
     );
   }
 }
+
 async function createPost(request, env) {
   try {
     const body = await readJsonBody(request);
