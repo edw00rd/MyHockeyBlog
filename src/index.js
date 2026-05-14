@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.14.0",
-        message: "Sent to the Box backend moderation state added. ",
+        version: "0.14.1",
+        message: "Rent-a-Ref and review banner now rotate randomly. ",
         timestamp: new Date().toISOString()
       });
     }
@@ -1368,7 +1368,7 @@ async function createRentARefComment(env, postId) {
         .run();
     }
     
-    const rentARefBody = generateRentARefComment(post, chirpProfile);
+    const rentARefBody = generateRentARefComment(post, chirpProfile, moderationDecision);
     const commentId = crypto.randomUUID();
 
     await env.DB.prepare(
@@ -1522,7 +1522,7 @@ async function ensureRentARefAuthor(env, now) {
     .run();
 }
 
-function generateRentARefComment(post, chirpProfile) {
+function generateRentARefComment(post, chirpProfile, moderationDecision = null) {
   const status = chirpProfile.chirp_status || "normal";
   const chirpCount = Number(chirpProfile.chirp_count || 0);
 
@@ -1533,74 +1533,116 @@ function generateRentARefComment(post, chirpProfile) {
   const targeted = Number(chirpProfile.targeted_score || 0);
   const spam = Number(chirpProfile.spam_score || 0);
 
+  if (moderationDecision?.moderation_status === "under_review") {
+    return pickRentARefLine([
+      "We’ve got a link on the play. I’m sending this upstairs before somebody clicks something sketchy.",
+      "Media involved. I’m not making that call from the blue line. Sent upstairs for review.",
+      "There’s a link in the mix, and the chirp shape looks ugly. Situation Room can sort this one out.",
+      "Review on the play. I’m not trusting beer league Wi-Fi and a hot take with this one.",
+      "This one’s got link/media risk. I’m blowing it dead and sending it upstairs.",
+      "I saw a link, I saw a bad chirp shape, and I’m not wearing that liability. Review on the play.",
+      "This is above my pay grade, which is already dangerously close to rink coffee. Sent upstairs."
+    ]);
+  }
+
+  if (moderationDecision?.moderation_status === "benched") {
+    return pickRentARefLine([
+      "That one’s a cheap shot. Two minutes for making it weird.",
+      "Whistle’s up. Too much head-hunting, not enough hockey.",
+      "You can chirp the play without running the goalie. Sent to the box.",
+      "That crossed the line from chirp to nonsense. Take a seat.",
+      "I’m calling that one. Cheap shot energy, no attempt to play the puck.",
+      "That’s not a chirp, that’s a slash after the whistle. Into the box.",
+      "The puck was nowhere near that comment. Sit down for two."
+    ]);
+  }
+
   if (chirpCount === 0) {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "No chirps on the sheet yet. Clean enough for beer league. Play on.",
       "No penalty on the play. Little late-game energy, but we skate on.",
-      "I’ve seen worse at 10:45 with one ref and a foggy visor. Play on."
+      "I’ve seen worse at 10:45 with one ref and a foggy visor. Play on.",
+      "No call. Everybody breathe and find your backcheck.",
+      "Marginal contact, acceptable chirp. Play on."
     ]);
   }
 
   if (spam >= 4 || status === "gongshow") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "This is drifting into full gongshow territory. Somebody find the puck and settle it down.",
       "That’s a lot of noise for not much hockey. I’m calling this one a rink-lobby argument.",
-      "Gongshow energy detected. No goal, no assist, no useful contribution."
+      "Gongshow energy detected. No goal, no assist, no useful contribution.",
+      "This thread is one broken skate lace away from a full collapse.",
+      "Too much chaos, not enough hockey. I’m tapping the glass on this one."
     ]);
   }
 
   if ((rude >= 4 && targeted >= 3) || status === "ref_review") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "Whistle’s up. That’s looking personal, and I’m not letting beer league turn into court testimony.",
       "Targeting the player instead of the play. That’s getting a whistle.",
-      "Keep it about the hockey. Once it gets personal, you’re skating toward the box."
+      "Keep it about the hockey. Once it gets personal, you’re skating toward the box.",
+      "That’s head-hunting, not chirping. I’m making the call.",
+      "You can light up the play. You don’t get to line up the player."
     ]);
   }
 
   if (rude >= 4 || status === "cheap_shot") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "That one’s a cheap shot. Two minutes for making it weird.",
       "Plenty of heat, not enough class. I’ve got that as a minor for unnecessary nonsense.",
-      "You can chirp the play without running the goalie. Clean it up."
+      "You can chirp the play without running the goalie. Clean it up.",
+      "That one had no puck support and too much attitude.",
+      "Cheap shot energy. I saw it, the bench saw it, everybody saw it."
     ]);
   }
 
   if (rude >= 3 || targeted >= 2 || status === "tone_check") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "Tone check. You’re not in the box yet, but you’re leaning over the boards.",
       "I’m letting it go, but keep the elbows tucked. This is beer league, not arbitration.",
-      "Little close to the line. Keep it funny or keep it moving."
+      "Little close to the line. Keep it funny or keep it moving.",
+      "That’s borderline. I’m not calling it yet, but I’m watching the numbers.",
+      "You’re one bad follow-up away from hearing the whistle."
     ]);
   }
 
   if (heat >= 4 && rude <= 2) {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "Spicy, but still inside the dots. No call. Play on.",
       "There’s heat on that one, but the elbows are down. I’m letting it go.",
-      "Hot take, clean lane. No penalty unless someone starts whining."
+      "Hot take, clean lane. No penalty unless someone starts whining.",
+      "Little mustard on it, but nothing illegal. Keep skating.",
+      "That’s beer-league spicy, not box-worthy. Play on."
     ]);
   }
 
   if (helpful >= 4 || status === "tape_to_tape") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "That’s tape-to-tape. Actual useful feedback in a beer league thread. Rare, but I’ll allow it.",
       "Clean feed. Helpful, direct, and nobody had to throw a glove. Play on.",
-      "That one connected. Good pass, good point, no whistle."
+      "That one connected. Good pass, good point, no whistle.",
+      "That’s constructive enough to survive a locker room full of bad opinions.",
+      "Good hockey note. I’m waving off the nonsense and letting that stand."
     ]);
   }
 
   if (funny >= 4 || status === "good_chirp") {
-    return pickRentARefLine(post.id, [
+    return pickRentARefLine([
       "Clean chirp. Got a laugh, stayed inside the glass. Play on.",
       "Good chirp. Little mustard, no penalty. Keep skating.",
-      "That’s legal banter. I checked the rulebook I keep under the coffee cup."
+      "That’s legal banter. I checked the rulebook I keep under the coffee cup.",
+      "That one’s funny enough to let go. No call.",
+      "Harmless chirp, decent delivery. I’ve heard worse from the scorekeeper."
     ]);
   }
 
-  return pickRentARefLine(post.id, [
+  return pickRentARefLine([
     "I don’t hate it. I don’t love it. That’s beer league officiating, baby. Play on.",
     "No call. Everyone gets one before I start pretending this whistle works.",
-    "Marginal contact, questionable chirp, acceptable chaos. Play on."
+    "Marginal contact, questionable chirp, acceptable chaos. Play on.",
+    "I’m not sure what that was, but it wasn’t enough paperwork for a penalty.",
+    "We’re moving on before somebody asks me to explain the rulebook."
   ]);
 }
 
@@ -1666,15 +1708,12 @@ function contentHasLinkOrMedia(content) {
   return /(https?:\/\/|www\.|youtu\.be|youtube\.com|tiktok\.com|instagram\.com|x\.com|twitter\.com|\.com\b|\.net\b|\.org\b|\.io\b)/i.test(text);
 }
 
-function pickRentARefLine(seed, lines) {
-  const value = String(seed || "rent-a-ref");
-  let hash = 0;
-
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+function pickRentARefLine(lines) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return "No call on the play. Somehow, we continue.";
   }
 
-  return lines[hash % lines.length];
+  return lines[Math.floor(Math.random() * lines.length)];
 }
 
 async function getProfileKarma(env, username) {
