@@ -221,6 +221,17 @@ function renderPosts(posts) {
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
+        ${
+          Number(post.comments_enabled) === 1
+            ? `<button
+                class="button ghost rent-a-ref-button"
+                type="button"
+                data-post-id="${escapeHtml(post.id)}"
+              >
+                Rent-a-Ref
+              </button>`
+            : ""
+        }
       </div>
 
       <div class="chirp-profile-wrap">
@@ -259,6 +270,7 @@ function renderPosts(posts) {
 
   wireCommentControls();
   wireChirpControls();
+  wireRentARefControls();
 }
 
 function renderEventsPlaceholder() {
@@ -882,6 +894,54 @@ function wireChirpControls() {
         console.error(error);
       } finally {
         button.disabled = false;
+      }
+    });
+  });
+}
+
+function wireRentARefControls() {
+  document.querySelectorAll(".rent-a-ref-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const postId = button.dataset.postId;
+
+      if (!postId) return;
+
+      try {
+        button.disabled = true;
+        button.textContent = "Calling it...";
+
+        const result = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/rent-a-ref`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+
+        const list = document.querySelector(`#comments-${CSS.escape(postId)}`);
+        const form = document.querySelector(`.comment-form[data-post-id="${CSS.escape(postId)}"]`);
+        const toggle = document.querySelector(`.comment-toggle[data-post-id="${CSS.escape(postId)}"]`);
+
+        if (toggle && result.comment_count !== undefined) {
+          toggle.textContent = `Comments (${Number(result.comment_count || 0)})`;
+        }
+
+        if (list) {
+          list.hidden = false;
+
+          if (form) {
+            form.hidden = false;
+          }
+
+          const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
+          renderComments(postId, data.comments || []);
+        }
+      } catch (error) {
+        alert(`Rent-a-Ref missed the call: ${error.message}`);
+        console.error(error);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Rent-a-Ref";
       }
     });
   });
