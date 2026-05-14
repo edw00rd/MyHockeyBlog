@@ -62,7 +62,8 @@ async function loadHomepage() {
 
     renderProfile(profileData);
     renderKarma(karmaData);
-    renderPosts(postsData.posts || []);
+    renderProfileChirpTone(karmaData);
+    renderPosts(postsData.posts || []);;
     renderEventsPlaceholder();
     wireForms();
   } catch (error) {
@@ -105,6 +106,55 @@ function renderKarma(data) {
     "#karma-label",
     `Locker Room Karma: ${karma.karma_label || "Rookie"}`
   );
+}
+
+function buildProfileChirpProfileFromKarma(data) {
+  const karma = data.karma || {};
+  const totals = karma.chirp_profile_totals || {};
+  const chirpCount = Number(karma.chirps_received || 0);
+
+  const averageScore = (value) => {
+    if (!chirpCount) return 0;
+
+    return Math.round((Number(value || 0) / chirpCount) * 10) / 10;
+  };
+
+  return {
+    chirp_count: chirpCount,
+    helpful_score: averageScore(totals.tape_to_tape),
+    funny_score: averageScore(totals.laughs),
+    heat_score: averageScore(totals.heat),
+    rude_score: averageScore(totals.cheap_shot),
+    targeted_score: averageScore(totals.head_hunting),
+    spam_score: averageScore(totals.gongshow)
+  };
+}
+
+function renderProfileChirpTone(data) {
+  const container = $("#profile-chirp-profile");
+  if (!container) return;
+
+  const profile = buildProfileChirpProfileFromKarma(data);
+  const chirpCount = Number(profile.chirp_count || 0);
+
+  if (!chirpCount) {
+    container.innerHTML = `
+      <div class="profile-tone-empty">
+        No Locker Room Tone yet. Chirps on posts and comments will shape this profile.
+      </div>
+    `;
+    return;
+  }
+
+  const label = getChirpProfileLabel(profile) || "Locker Room Tone";
+
+  container.innerHTML = `
+    <div class="profile-tone-header">
+      <span class="badge chirp-badge">${escapeHtml(label)}</span>
+    </div>
+
+    ${renderChirpProfile(profile)}
+  `;
 }
 
 function renderPosts(posts) {
