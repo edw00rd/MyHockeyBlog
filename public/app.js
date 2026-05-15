@@ -56,10 +56,11 @@ async function fetchJson(url, options = {}) {
 
 async function loadHomepage() {
   try {
-    const [profileData, postsData, karmaData] = await Promise.all([
+    const [profileData, postsData, karmaData, reviewsData] = await Promise.all([
       fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}`),
       fetchJson("/api/posts"),
-      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}/karma`)
+      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}/karma`),
+      fetchJson("/api/reviews")
     ]);
 
     renderProfile(profileData);
@@ -67,6 +68,7 @@ async function loadHomepage() {
     renderLeadership(karmaData);
     renderProfileChirpTone(karmaData);
     renderPosts(postsData.posts || []);
+    renderSituationRoom(reviewsData.reviews || []);
     renderEventsPlaceholder();
     wireForms();
   } catch (error) {
@@ -334,6 +336,189 @@ function wireModerationControls() {
 
       target.hidden = !shouldShow;
       button.textContent = shouldShow ? "Hide again" : "Show anyway";
+    });
+  });
+}
+
+function formatReviewReason(reason = "") {
+  const labels = {
+    cheap_shot_with_link_or_media: "Cheap Shot + Link/Media",
+    cheap_shot_head_hunting_with_link_or_media: "Cheap Shot / Head-Hunting + Link/Media",
+    gongshow_with_link_or_media: "Gongshow + Link/Media",
+    review_keep_benched: "Kept Benched",
+    review_unbenched: "Waved Off",
+    review_warn_user: "Warning",
+    review_escalated_user: "Escalated User"
+  };
+
+  return labels[reason] || String(reason || "Review").replaceAll("_", " ");
+}
+
+function getReviewTitle(review) {
+  if (review.content_type === "post") {
+    return review.post_title || "Untitled post";
+  }
+
+  return "Comment under review";
+}
+
+function getReviewBody(review) {
+  if (review.content_type === "post") {
+    return review.post_body || "";
+  }
+
+  return review.comment_body || "";
+}
+
+function getReviewTypeLabel(review) {
+  return review.content_type === "comment" ? "Comment" : "Post";
+}
+
+function renderSituationRoom(reviews) {
+  const container = $("#review-list");
+  if (!container) return;
+
+  if (!reviews.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        No reviews on the board. Situation Room is clear.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = reviews
+    .map((review) => {
+      const title = getReviewTitle(review);
+      const body = getReviewBody(review);
+      const typeLabel = getReviewTypeLabel(review);
+      const reasonLabel = formatReviewReason(review.opened_reason);
+
+      return `
+        <article class="review-card" data-review-id="${escapeHtml(review.id)}">
+          <div class="review-card-header">
+            <div>
+              <div class="post-meta">
+                <span class="badge review-badge">Under Review</span>
+                <span class="badge">${escapeHtml(typeLabel)}</span>
+                <span class="badge">${escapeHtml(reasonLabel)}</span>
+                <span class="badge">${formatDate(review.opened_at)}</span>
+              </div>
+
+              <h3>${escapeHtml(title)}</h3>
+            </div>
+
+            <div class="review-scoreboard" aria-label="Review vote totals">
+              <span>Votes: ${Number(review.vote_count || 0)}</span>
+              <span>Wave off: ${Number(review.unbench_votes || 0)}</span>
+              <span>Keep: ${Number(review.keep_benched_votes || 0)}</span>
+            </div>
+          </div>
+
+          <div class="review-preview">
+            <p>${escapeHtml(body || "No preview available.")}</p>
+          </div>
+
+          <div class="review-actions">
+            <button
+              class="button secondary review-vote-button"
+              type="button"
+              data-review-id="${escapeHtml(review.id)}"
+              data-vote="unbench"
+            >
+              Wave it off
+            </button>
+
+            <button
+              class="button ghost review-vote-button"
+              type="button"
+              data-review-id="${escapeHtml(review.id)}"
+              data-vote="keep_benched"
+            >
+              Keep benched
+            </button>
+
+            <button
+              class="button ghost review-vote-button"
+              type="button"
+              data-review-id="${escapeHtml(review.id)}"
+              data-vote="warn_user"
+            >
+              Warn user
+            </button>
+
+            <button
+              class="button ghost review-vote-button danger"
+              type="button"
+              data-review-id="${escapeHtml(review.id)}"
+              data-vote="escalate_user"
+            >
+              Escalate user
+            </button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  wireReviewControls();
+}
+
+async function refreshSituationRoom() {
+  const reviewsData = await fetchJson("/api/reviews");
+  renderSituationRoom(reviewsData.reviews || []);
+}
+
+async function refreshPostsAndSituationRoom() {
+  const [postsData, reviewsData] = await Promise.all([
+    fetchJson("/api/posts"),
+    fetchJson("/api/reviews")
+  ]);
+
+  renderPosts(postsData.posts || []);
+  renderSituationRoom(reviewsData.reviews || []);
+}
+
+function wireReviewControls() {
+  document.querySelectorAll(".review-vote-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const reviewId = button.dataset.reviewId;
+      const vote = button.dataset.vote;
+      const reviewCard = button.closest(".review-card");
+
+      if (!reviewId || !vote) return;
+
+      try {
+        reviewCard?.querySelectorAll(".review-vote-button").forEach((reviewButton) => {
+          reviewButton.disabled = true;
+        });
+
+        button.textContent = "Reviewing...";
+
+        const result = await fetchJson(`/api/reviews/${encodeURIComponent(reviewId)}/vote`, {
+          method: "POST",
+          body: JSON.stringify({
+            vote,
+            vote_reason: `Demo Situation Room vote: ${vote}`
+          })
+        });
+
+        await refreshPostsAndSituationRoom();
+
+        if (result.resolved) {
+          console.log("Situation Room decision:", result.decision);
+        }
+      } catch (error) {
+        alert(`Could not cast review vote: ${error.message}`);
+        console.error(error);
+
+        reviewCard?.querySelectorAll(".review-vote-button").forEach((reviewButton) => {
+          reviewButton.disabled = false;
+        });
+      }
     });
   });
 }
@@ -1191,6 +1376,8 @@ function wireRentARefCommentControls() {
 
         const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
         renderComments(postId, data.comments || []);
+        
+        await refreshSituationRoom();
       } catch (error) {
         alert(`Rent-a-Ref missed the call on this comment: ${error.message}`);
         console.error(error);
@@ -1248,6 +1435,9 @@ function wireRentARefControls() {
           const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
           renderComments(postId, data.comments || []);
         }
+
+        await refreshSituationRoom();
+        
       } catch (error) {
         alert(`Rent-a-Ref missed the call: ${error.message}`);
         console.error(error);
