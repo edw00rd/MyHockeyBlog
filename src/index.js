@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.18.0",
-        message: "Anonymous Situation Room token review system added.",
+        version: "0.18.1",
+        message: "Reset database content.",
         timestamp: new Date().toISOString()
       });
     }
