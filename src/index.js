@@ -1,9 +1,13 @@
 const DEMO_USER_ID = "user_demo_001";
 const DEMO_PROFILE_ID = "profile_demo_001";
 const DEMO_USERNAME = "demo-skater";
+
 const RENT_A_REF_USER_ID = "user_rent_a_ref_001";
 const RENT_A_REF_PROFILE_ID = "profile_rent_a_ref_001";
 const RENT_A_REF_USERNAME = "rent-a-ref";
+
+const REVIEW_DECISION_THRESHOLD = 1; // Demo mode. Later set to 2 or 3 when real users exist.
+const REVIEW_ACTING_USER_ID = DEMO_USER_ID; // Temporary until login/auth exists.
 
 export default {
   async fetch(request, env, ctx) {
@@ -58,8 +62,30 @@ export default {
     if (url.pathname === "/api/chirps" && method === "POST") {
       return createChirp(request, env);
     }
-
+    
     const rentARefMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/rent-a-ref$/);
+    
+    if (rentARefMatch && method === "POST") {
+      return createRentARefComment(env, rentARefMatch[1]);
+    }
+    
+    const rentARefCommentMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/rent-a-ref$/);
+    
+    if (rentARefCommentMatch && method === "POST") {
+      return createRentARefCommentForComment(env, rentARefCommentMatch[1]);
+    }
+    
+    if (url.pathname === "/api/reviews" && method === "GET") {
+      return getOpenReviews(env);
+    }
+    
+    const reviewVoteMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/vote$/);
+    
+    if (reviewVoteMatch && method === "POST") {
+      return castReviewVote(request, env, reviewVoteMatch[1]);
+    }
+    
+    const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
     
     if (rentARefMatch && method === "POST") {
       return createRentARefComment(env, rentARefMatch[1]);
@@ -88,6 +114,8 @@ export default {
     
       return getProfileKarma(env, username);
     }
+
+    
     
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
@@ -1421,6 +1449,16 @@ async function createRentARefCommentForComment(env, commentId) {
           commentId
         )
         .run();
+    }
+
+    if (moderationDecision.moderation_status === "under_review") {
+      await ensureContentReviewCase(env, {
+        contentType: "post",
+        contentId: postId,
+        openedByUserId: RENT_A_REF_USER_ID,
+        openedReason: moderationDecision.moderation_reason,
+        now
+      });
     }
 
     const rentARefBody = generateRentARefComment(targetComment, chirpProfile, moderationDecision);
