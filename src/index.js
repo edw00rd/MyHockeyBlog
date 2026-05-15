@@ -6,7 +6,9 @@ const RENT_A_REF_USER_ID = "user_rent_a_ref_001";
 const RENT_A_REF_PROFILE_ID = "profile_rent_a_ref_001";
 const RENT_A_REF_USERNAME = "rent-a-ref";
 
-const REVIEW_DECISION_THRESHOLD = 1; // Demo mode. Later set to 2 or 3 when real users exist.
+const REVIEW_REQUIRED_VOTES = 3; // Max review slots / best-of-3 capacity.
+const REVIEW_DECISION_THRESHOLD = 2; // First side to 2 wins.
+const REVIEW_TOKEN_TIMEOUT_MINUTES = 10;
 const REVIEW_ACTING_USER_ID = DEMO_USER_ID; // Temporary until login/auth exists.
 
 export default {
@@ -26,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.17.0",
-        message: "Situation Room review cases and voting API added.",
+        version: "0.18.0",
+        message: "Anonymous Situation Room token review system added.",
         timestamp: new Date().toISOString()
       });
     }
@@ -77,6 +79,12 @@ export default {
     
     if (url.pathname === "/api/reviews" && method === "GET") {
       return getOpenReviews(env);
+    }
+    
+    const reviewCheckoutMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/checkout$/);
+    
+    if (reviewCheckoutMatch && method === "POST") {
+      return checkoutReview(request, env, reviewCheckoutMatch[1]);
     }
     
     const reviewVoteMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/vote$/);
@@ -2075,6 +2083,7 @@ async function ensureContentReviewCase(env, {
     .first();
 
   if (existing) {
+    await ensureReviewTokens(env, existing.id, now);
     return existing.id;
   }
 
@@ -2093,9 +2102,13 @@ async function ensureContentReviewCase(env, {
       opened_at,
       resolved_at,
       resolved_by_user_id,
-      notes
+      notes,
+      required_votes,
+      total_votes,
+      unbench_votes,
+      keep_benched_votes
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   )
     .bind(
@@ -2109,15 +2122,90 @@ async function ensureContentReviewCase(env, {
       now,
       null,
       null,
-      null
+      null,
+      REVIEW_REQUIRED_VOTES,
+      0,
+      0,
+      0
     )
     .run();
+
+  await ensureReviewTokens(env, reviewId, now);
 
   return reviewId;
 }
 
+async function ensureReviewTokens(env, reviewId, now) {
+  for (const slotNumber of [1, 2, 3]) {
+    await env.DB.prepare(
+      `
+      INSERT OR IGNORE INTO content_review_tokens (
+        id,
+        review_id,
+        slot_number,
+        token_status,
+        checked_out_by_user_id,
+        checked_out_at,
+        expires_at,
+        burned_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        `review_token_${reviewId}_${slotNumber}`,
+        reviewId,
+        slotNumber,
+        "available",
+        null,
+        null,
+        null,
+        null,
+        now,
+        now
+      )
+      .run();
+  }
+}
+
+async function releaseExpiredReviewTokens(env, now) {
+  await env.DB.prepare(
+    `
+    UPDATE content_review_tokens
+    SET token_status = 'available',
+        checked_out_by_user_id = NULL,
+        checked_out_at = NULL,
+        expires_at = NULL,
+        updated_at = ?
+    WHERE token_status = 'checked_out'
+      AND expires_at IS NOT NULL
+      AND expires_at <= ?
+    `
+  )
+    .bind(now, now)
+    .run();
+
+  await env.DB.prepare(
+    `
+    DELETE FROM content_review_participants
+    WHERE participation_status = 'checked_out'
+      AND token_id NOT IN (
+        SELECT id
+        FROM content_review_tokens
+        WHERE token_status = 'checked_out'
+      )
+    `
+  ).run();
+}
+
 async function getOpenReviews(env) {
   try {
+    const now = new Date().toISOString();
+
+    await releaseExpiredReviewTokens(env, now);
+
     const result = await env.DB.prepare(
       `
       SELECT
@@ -2131,6 +2219,8 @@ async function getOpenReviews(env) {
         content_reviews.opened_at,
         content_reviews.resolved_at,
         content_reviews.notes,
+        content_reviews.required_votes,
+        content_reviews.total_votes,
 
         posts.title AS post_title,
         posts.body AS post_body,
@@ -2144,37 +2234,24 @@ async function getOpenReviews(env) {
 
         (
           SELECT COUNT(*)
-          FROM content_review_votes
-          WHERE content_review_votes.review_id = content_reviews.id
-        ) AS vote_count,
+          FROM content_review_tokens
+          WHERE content_review_tokens.review_id = content_reviews.id
+            AND content_review_tokens.token_status = 'available'
+        ) AS tokens_available,
 
         (
           SELECT COUNT(*)
-          FROM content_review_votes
-          WHERE content_review_votes.review_id = content_reviews.id
-            AND content_review_votes.vote = 'unbench'
-        ) AS unbench_votes,
+          FROM content_review_tokens
+          WHERE content_review_tokens.review_id = content_reviews.id
+            AND content_review_tokens.token_status = 'checked_out'
+        ) AS tokens_checked_out,
 
         (
           SELECT COUNT(*)
-          FROM content_review_votes
-          WHERE content_review_votes.review_id = content_reviews.id
-            AND content_review_votes.vote = 'keep_benched'
-        ) AS keep_benched_votes,
-
-        (
-          SELECT COUNT(*)
-          FROM content_review_votes
-          WHERE content_review_votes.review_id = content_reviews.id
-            AND content_review_votes.vote = 'warn_user'
-        ) AS warn_user_votes,
-
-        (
-          SELECT COUNT(*)
-          FROM content_review_votes
-          WHERE content_review_votes.review_id = content_reviews.id
-            AND content_review_votes.vote = 'escalate_user'
-        ) AS escalate_user_votes
+          FROM content_review_tokens
+          WHERE content_review_tokens.review_id = content_reviews.id
+            AND content_review_tokens.token_status = 'burned'
+        ) AS tokens_burned
 
       FROM content_reviews
       LEFT JOIN posts
@@ -2184,14 +2261,36 @@ async function getOpenReviews(env) {
         ON content_reviews.content_type = 'comment'
         AND comments.id = content_reviews.content_id
       WHERE content_reviews.review_status = 'open'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM content_review_participants
+          WHERE content_review_participants.review_id = content_reviews.id
+            AND content_review_participants.reviewer_user_id = ?
+            AND content_review_participants.participation_status = 'completed'
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM content_review_tokens
+          WHERE content_review_tokens.review_id = content_reviews.id
+            AND content_review_tokens.token_status = 'available'
+        )
       ORDER BY content_reviews.opened_at DESC
       LIMIT 50
       `
-    ).all();
+    )
+      .bind(REVIEW_ACTING_USER_ID)
+      .all();
 
     return json({
       ok: true,
-      reviews: result.results || []
+      reviews: (result.results || []).map((review) => ({
+        ...review,
+        reviews_needed: Number(review.required_votes || REVIEW_REQUIRED_VOTES),
+        reviews_completed: Number(review.total_votes || 0),
+        tokens_available: Number(review.tokens_available || 0),
+        tokens_checked_out: Number(review.tokens_checked_out || 0),
+        tokens_burned: Number(review.tokens_burned || 0)
+      }))
     });
   } catch (error) {
     return json(
@@ -2205,28 +2304,11 @@ async function getOpenReviews(env) {
   }
 }
 
-async function castReviewVote(request, env, reviewId) {
+async function checkoutReview(request, env, reviewId) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const vote = String(body.vote || "").trim();
-    const voteReason = String(body.vote_reason || "").trim();
+    const now = new Date().toISOString();
 
-    const allowedVotes = new Set([
-      "unbench",
-      "keep_benched",
-      "warn_user",
-      "escalate_user"
-    ]);
-
-    if (!allowedVotes.has(vote)) {
-      return json(
-        {
-          ok: false,
-          error: "Invalid review vote."
-        },
-        400
-      );
-    }
+    await releaseExpiredReviewTokens(env, now);
 
     const review = await env.DB.prepare(
       `
@@ -2234,7 +2316,9 @@ async function castReviewVote(request, env, reviewId) {
         id,
         content_type,
         content_id,
-        review_status
+        review_status,
+        required_votes,
+        total_votes
       FROM content_reviews
       WHERE id = ?
       LIMIT 1
@@ -2253,54 +2337,137 @@ async function castReviewVote(request, env, reviewId) {
       );
     }
 
-    const now = new Date().toISOString();
-    const voteId = crypto.randomUUID();
+    const participant = await env.DB.prepare(
+      `
+      SELECT id, participation_status, token_id
+      FROM content_review_participants
+      WHERE review_id = ?
+        AND reviewer_user_id = ?
+      LIMIT 1
+      `
+    )
+      .bind(reviewId, REVIEW_ACTING_USER_ID)
+      .first();
+
+    if (participant?.participation_status === "completed") {
+      return json(
+        {
+          ok: false,
+          error: "You have already reviewed this play."
+        },
+        403
+      );
+    }
+
+    if (participant?.participation_status === "checked_out" && participant.token_id) {
+      const existingToken = await env.DB.prepare(
+        `
+        SELECT id, expires_at
+        FROM content_review_tokens
+        WHERE id = ?
+          AND token_status = 'checked_out'
+          AND checked_out_by_user_id = ?
+        LIMIT 1
+        `
+      )
+        .bind(participant.token_id, REVIEW_ACTING_USER_ID)
+        .first();
+
+      if (existingToken) {
+        return json({
+          ok: true,
+          review_id: reviewId,
+          token_id: existingToken.id,
+          expires_at: existingToken.expires_at,
+          already_checked_out: true
+        });
+      }
+    }
+
+    const token = await env.DB.prepare(
+      `
+      SELECT id
+      FROM content_review_tokens
+      WHERE review_id = ?
+        AND token_status = 'available'
+      ORDER BY slot_number ASC
+      LIMIT 1
+      `
+    )
+      .bind(reviewId)
+      .first();
+
+    if (!token) {
+      return json(
+        {
+          ok: false,
+          error: "No review tokens available."
+        },
+        409
+      );
+    }
+
+    const expiresAt = new Date(
+      Date.now() + REVIEW_TOKEN_TIMEOUT_MINUTES * 60 * 1000
+    ).toISOString();
 
     await env.DB.prepare(
       `
-      INSERT INTO content_review_votes (
+      UPDATE content_review_tokens
+      SET token_status = 'checked_out',
+          checked_out_by_user_id = ?,
+          checked_out_at = ?,
+          expires_at = ?,
+          updated_at = ?
+      WHERE id = ?
+        AND token_status = 'available'
+      `
+    )
+      .bind(REVIEW_ACTING_USER_ID, now, expiresAt, now, token.id)
+      .run();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO content_review_participants (
         id,
         review_id,
         reviewer_user_id,
-        vote,
-        vote_reason,
+        participation_status,
+        token_id,
         created_at,
         updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(review_id, reviewer_user_id)
       DO UPDATE SET
-        vote = excluded.vote,
-        vote_reason = excluded.vote_reason,
+        participation_status = excluded.participation_status,
+        token_id = excluded.token_id,
         updated_at = excluded.updated_at
       `
     )
       .bind(
-        voteId,
+        crypto.randomUUID(),
         reviewId,
         REVIEW_ACTING_USER_ID,
-        vote,
-        voteReason || null,
+        "checked_out",
+        token.id,
         now,
         now
       )
       .run();
 
-    const resolution = await resolveReviewIfReady(env, reviewId, now);
-
     return json({
       ok: true,
       review_id: reviewId,
-      vote,
-      resolved: resolution.resolved,
-      decision: resolution.decision,
-      threshold: REVIEW_DECISION_THRESHOLD
+      token_id: token.id,
+      expires_at: expiresAt,
+      already_checked_out: false
     });
   } catch (error) {
     return json(
       {
         ok: false,
-        message: "Failed to cast review vote.",
+        message: "Failed to check out review.",
         error: error.message
       },
       500
@@ -2308,22 +2475,197 @@ async function castReviewVote(request, env, reviewId) {
   }
 }
 
-async function resolveReviewIfReady(env, reviewId, now) {
-  const review = await env.DB.prepare(
-    `
-    SELECT
-      id,
-      content_type,
-      content_id,
-      review_status
-    FROM content_reviews
-    WHERE id = ?
-    LIMIT 1
-    `
-  )
-    .bind(reviewId)
-    .first();
+async function castReviewVote(request, env, reviewId) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const tokenId = String(body.token_id || "").trim();
+    const vote = String(body.vote || "").trim();
 
+    const allowedVotes = new Set(["unbench", "keep_benched"]);
+
+    if (!tokenId) {
+      return json(
+        {
+          ok: false,
+          error: "token_id is required."
+        },
+        400
+      );
+    }
+
+    if (!allowedVotes.has(vote)) {
+      return json(
+        {
+          ok: false,
+          error: "Invalid review vote."
+        },
+        400
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    await releaseExpiredReviewTokens(env, now);
+
+    const review = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        content_type,
+        content_id,
+        review_status,
+        required_votes,
+        total_votes,
+        unbench_votes,
+        keep_benched_votes
+      FROM content_reviews
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+      .bind(reviewId)
+      .first();
+
+    if (!review || review.review_status !== "open") {
+      return json(
+        {
+          ok: false,
+          error: "Open review not found."
+        },
+        404
+      );
+    }
+
+    const token = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        review_id,
+        token_status,
+        checked_out_by_user_id,
+        expires_at
+      FROM content_review_tokens
+      WHERE id = ?
+        AND review_id = ?
+      LIMIT 1
+      `
+    )
+      .bind(tokenId, reviewId)
+      .first();
+
+    if (
+      !token ||
+      token.token_status !== "checked_out" ||
+      token.checked_out_by_user_id !== REVIEW_ACTING_USER_ID
+    ) {
+      return json(
+        {
+          ok: false,
+          error: "Valid checked-out review token not found."
+        },
+        403
+      );
+    }
+
+    if (token.expires_at && new Date(token.expires_at).getTime() <= Date.now()) {
+      await releaseExpiredReviewTokens(env, now);
+
+      return json(
+        {
+          ok: false,
+          error: "Review token expired. Please check out the review again."
+        },
+        409
+      );
+    }
+
+    const unbenchIncrement = vote === "unbench" ? 1 : 0;
+    const keepBenchedIncrement = vote === "keep_benched" ? 1 : 0;
+
+    await env.DB.prepare(
+      `
+      UPDATE content_reviews
+      SET total_votes = total_votes + 1,
+          unbench_votes = unbench_votes + ?,
+          keep_benched_votes = keep_benched_votes + ?
+      WHERE id = ?
+        AND review_status = 'open'
+      `
+    )
+      .bind(unbenchIncrement, keepBenchedIncrement, reviewId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      UPDATE content_review_tokens
+      SET token_status = 'burned',
+          checked_out_by_user_id = NULL,
+          checked_out_at = NULL,
+          expires_at = NULL,
+          burned_at = ?,
+          updated_at = ?
+      WHERE id = ?
+      `
+    )
+      .bind(now, now, tokenId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      UPDATE content_review_participants
+      SET participation_status = 'completed',
+          token_id = NULL,
+          updated_at = ?
+      WHERE review_id = ?
+        AND reviewer_user_id = ?
+      `
+    )
+      .bind(now, reviewId, REVIEW_ACTING_USER_ID)
+      .run();
+
+    const updatedReview = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        content_type,
+        content_id,
+        review_status,
+        required_votes,
+        total_votes,
+        unbench_votes,
+        keep_benched_votes
+      FROM content_reviews
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+      .bind(reviewId)
+      .first();
+
+    const resolution = await resolveReviewIfReady(env, updatedReview, now);
+
+    return json({
+      ok: true,
+      review_id: reviewId,
+      token_burned: true,
+      resolved: resolution.resolved,
+      decision: resolution.decision,
+      reviews_completed: Number(updatedReview?.total_votes || 0),
+      reviews_needed: Number(updatedReview?.required_votes || REVIEW_REQUIRED_VOTES)
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to cast anonymous review vote.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function resolveReviewIfReady(env, review, now) {
   if (!review || review.review_status !== "open") {
     return {
       resolved: false,
@@ -2331,43 +2673,40 @@ async function resolveReviewIfReady(env, reviewId, now) {
     };
   }
 
-  const voteTotals = await env.DB.prepare(
-    `
-    SELECT
-      vote,
-      COUNT(*) AS vote_count
-    FROM content_review_votes
-    WHERE review_id = ?
-    GROUP BY vote
-    ORDER BY vote_count DESC
-    `
-  )
-    .bind(reviewId)
-    .all();
+  const requiredVotes = Number(review.required_votes || REVIEW_REQUIRED_VOTES);
+  const totalVotes = Number(review.total_votes || 0);
+  const unbenchVotes = Number(review.unbench_votes || 0);
+  const keepBenchedVotes = Number(review.keep_benched_votes || 0);
 
-  const winningVote = (voteTotals.results || []).find((row) => {
-    return Number(row.vote_count || 0) >= REVIEW_DECISION_THRESHOLD;
-  });
+  let decision = null;
 
-  if (!winningVote) {
+  if (unbenchVotes >= REVIEW_DECISION_THRESHOLD) {
+    decision = "unbench";
+  }
+
+  if (keepBenchedVotes >= REVIEW_DECISION_THRESHOLD) {
+    decision = "keep_benched";
+  }
+
+  if (!decision && totalVotes >= requiredVotes) {
+    decision = unbenchVotes > keepBenchedVotes
+      ? "unbench"
+      : "keep_benched";
+  }
+
+  if (!decision) {
     return {
       resolved: false,
       decision: null
     };
   }
 
-  const decision = winningVote.vote;
-
   await applyReviewDecision(env, review, decision, now);
-
-  const reviewStatus = decision === "escalate_user"
-    ? "escalated"
-    : "resolved";
 
   await env.DB.prepare(
     `
     UPDATE content_reviews
-    SET review_status = ?,
+    SET review_status = 'resolved',
         final_decision = ?,
         resolved_at = ?,
         resolved_by_user_id = ?
@@ -2375,12 +2714,26 @@ async function resolveReviewIfReady(env, reviewId, now) {
     `
   )
     .bind(
-      reviewStatus,
       decision,
       now,
-      REVIEW_ACTING_USER_ID,
-      reviewId
+      "anonymous_review_consensus",
+      review.id
     )
+    .run();
+
+  await env.DB.prepare(
+    `
+    UPDATE content_review_tokens
+    SET token_status = 'burned',
+        checked_out_by_user_id = NULL,
+        checked_out_at = NULL,
+        expires_at = NULL,
+        updated_at = ?
+    WHERE review_id = ?
+      AND token_status IN ('available', 'checked_out')
+    `
+  )
+    .bind(now, review.id)
     .run();
 
   return {
