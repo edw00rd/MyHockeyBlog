@@ -26,8 +26,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.16.0",
-        message: "Rent-a-Ref now works on comments.",
+        version: "0.17.0",
+        message: "Situation Room review cases and voting API added.",
         timestamp: new Date().toISOString()
       });
     }
@@ -58,7 +58,7 @@ export default {
     if (commentVoteMatch && method === "POST") {
       return voteOnComment(request, env, commentVoteMatch[1]);
     }
-
+    
     if (url.pathname === "/api/chirps" && method === "POST") {
       return createChirp(request, env);
     }
@@ -87,18 +87,6 @@ export default {
     
     const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
     
-    if (rentARefMatch && method === "POST") {
-      return createRentARefComment(env, rentARefMatch[1]);
-    }
-
-    const rentARefCommentMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/rent-a-ref$/);
-    
-    if (rentARefCommentMatch && method === "POST") {
-      return createRentARefCommentForComment(env, rentARefCommentMatch[1]);
-    }
-    
-    const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
-    
     if (karmaMatch && method === "GET") {
       const username = decodeURIComponent(karmaMatch[1]);
     
@@ -114,8 +102,6 @@ export default {
     
       return getProfileKarma(env, username);
     }
-
-    
     
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
@@ -1460,6 +1446,16 @@ async function createRentARefCommentForComment(env, commentId) {
         now
       });
     }
+    
+    if (moderationDecision.moderation_status === "under_review") {
+      await ensureContentReviewCase(env, {
+        contentType: "comment",
+        contentId: commentId,
+        openedByUserId: RENT_A_REF_USER_ID,
+        openedReason: moderationDecision.moderation_reason,
+        now
+      });
+    }
 
     const rentARefBody = generateRentARefComment(targetComment, chirpProfile, moderationDecision);
     const rentARefCommentId = crypto.randomUUID();
@@ -2055,6 +2051,414 @@ function pickRentARefLine(lines) {
   }
 
   return lines[Math.floor(Math.random() * lines.length)];
+}
+
+async function ensureContentReviewCase(env, {
+  contentType,
+  contentId,
+  openedByUserId,
+  openedReason,
+  now
+}) {
+  const existing = await env.DB.prepare(
+    `
+    SELECT id
+    FROM content_reviews
+    WHERE content_type = ?
+      AND content_id = ?
+      AND review_status = 'open'
+    LIMIT 1
+    `
+  )
+    .bind(contentType, contentId)
+    .first();
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const reviewId = crypto.randomUUID();
+
+  await env.DB.prepare(
+    `
+    INSERT INTO content_reviews (
+      id,
+      content_type,
+      content_id,
+      opened_by_user_id,
+      opened_reason,
+      review_status,
+      final_decision,
+      opened_at,
+      resolved_at,
+      resolved_by_user_id,
+      notes
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      reviewId,
+      contentType,
+      contentId,
+      openedByUserId,
+      openedReason,
+      "open",
+      null,
+      now,
+      null,
+      null,
+      null
+    )
+    .run();
+
+  return reviewId;
+}
+
+async function getOpenReviews(env) {
+  try {
+    const result = await env.DB.prepare(
+      `
+      SELECT
+        content_reviews.id,
+        content_reviews.content_type,
+        content_reviews.content_id,
+        content_reviews.opened_by_user_id,
+        content_reviews.opened_reason,
+        content_reviews.review_status,
+        content_reviews.final_decision,
+        content_reviews.opened_at,
+        content_reviews.resolved_at,
+        content_reviews.notes,
+
+        posts.title AS post_title,
+        posts.body AS post_body,
+        posts.moderation_status AS post_moderation_status,
+        posts.moderation_reason AS post_moderation_reason,
+
+        comments.body AS comment_body,
+        comments.post_id AS comment_post_id,
+        comments.moderation_status AS comment_moderation_status,
+        comments.moderation_reason AS comment_moderation_reason,
+
+        (
+          SELECT COUNT(*)
+          FROM content_review_votes
+          WHERE content_review_votes.review_id = content_reviews.id
+        ) AS vote_count,
+
+        (
+          SELECT COUNT(*)
+          FROM content_review_votes
+          WHERE content_review_votes.review_id = content_reviews.id
+            AND content_review_votes.vote = 'unbench'
+        ) AS unbench_votes,
+
+        (
+          SELECT COUNT(*)
+          FROM content_review_votes
+          WHERE content_review_votes.review_id = content_reviews.id
+            AND content_review_votes.vote = 'keep_benched'
+        ) AS keep_benched_votes,
+
+        (
+          SELECT COUNT(*)
+          FROM content_review_votes
+          WHERE content_review_votes.review_id = content_reviews.id
+            AND content_review_votes.vote = 'warn_user'
+        ) AS warn_user_votes,
+
+        (
+          SELECT COUNT(*)
+          FROM content_review_votes
+          WHERE content_review_votes.review_id = content_reviews.id
+            AND content_review_votes.vote = 'escalate_user'
+        ) AS escalate_user_votes
+
+      FROM content_reviews
+      LEFT JOIN posts
+        ON content_reviews.content_type = 'post'
+        AND posts.id = content_reviews.content_id
+      LEFT JOIN comments
+        ON content_reviews.content_type = 'comment'
+        AND comments.id = content_reviews.content_id
+      WHERE content_reviews.review_status = 'open'
+      ORDER BY content_reviews.opened_at DESC
+      LIMIT 50
+      `
+    ).all();
+
+    return json({
+      ok: true,
+      reviews: result.results || []
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to load reviews.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function castReviewVote(request, env, reviewId) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const vote = String(body.vote || "").trim();
+    const voteReason = String(body.vote_reason || "").trim();
+
+    const allowedVotes = new Set([
+      "unbench",
+      "keep_benched",
+      "warn_user",
+      "escalate_user"
+    ]);
+
+    if (!allowedVotes.has(vote)) {
+      return json(
+        {
+          ok: false,
+          error: "Invalid review vote."
+        },
+        400
+      );
+    }
+
+    const review = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        content_type,
+        content_id,
+        review_status
+      FROM content_reviews
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+      .bind(reviewId)
+      .first();
+
+    if (!review || review.review_status !== "open") {
+      return json(
+        {
+          ok: false,
+          error: "Open review not found."
+        },
+        404
+      );
+    }
+
+    const now = new Date().toISOString();
+    const voteId = crypto.randomUUID();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO content_review_votes (
+        id,
+        review_id,
+        reviewer_user_id,
+        vote,
+        vote_reason,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(review_id, reviewer_user_id)
+      DO UPDATE SET
+        vote = excluded.vote,
+        vote_reason = excluded.vote_reason,
+        updated_at = excluded.updated_at
+      `
+    )
+      .bind(
+        voteId,
+        reviewId,
+        REVIEW_ACTING_USER_ID,
+        vote,
+        voteReason || null,
+        now,
+        now
+      )
+      .run();
+
+    const resolution = await resolveReviewIfReady(env, reviewId, now);
+
+    return json({
+      ok: true,
+      review_id: reviewId,
+      vote,
+      resolved: resolution.resolved,
+      decision: resolution.decision,
+      threshold: REVIEW_DECISION_THRESHOLD
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to cast review vote.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function resolveReviewIfReady(env, reviewId, now) {
+  const review = await env.DB.prepare(
+    `
+    SELECT
+      id,
+      content_type,
+      content_id,
+      review_status
+    FROM content_reviews
+    WHERE id = ?
+    LIMIT 1
+    `
+  )
+    .bind(reviewId)
+    .first();
+
+  if (!review || review.review_status !== "open") {
+    return {
+      resolved: false,
+      decision: null
+    };
+  }
+
+  const voteTotals = await env.DB.prepare(
+    `
+    SELECT
+      vote,
+      COUNT(*) AS vote_count
+    FROM content_review_votes
+    WHERE review_id = ?
+    GROUP BY vote
+    ORDER BY vote_count DESC
+    `
+  )
+    .bind(reviewId)
+    .all();
+
+  const winningVote = (voteTotals.results || []).find((row) => {
+    return Number(row.vote_count || 0) >= REVIEW_DECISION_THRESHOLD;
+  });
+
+  if (!winningVote) {
+    return {
+      resolved: false,
+      decision: null
+    };
+  }
+
+  const decision = winningVote.vote;
+
+  await applyReviewDecision(env, review, decision, now);
+
+  const reviewStatus = decision === "escalate_user"
+    ? "escalated"
+    : "resolved";
+
+  await env.DB.prepare(
+    `
+    UPDATE content_reviews
+    SET review_status = ?,
+        final_decision = ?,
+        resolved_at = ?,
+        resolved_by_user_id = ?
+    WHERE id = ?
+    `
+  )
+    .bind(
+      reviewStatus,
+      decision,
+      now,
+      REVIEW_ACTING_USER_ID,
+      reviewId
+    )
+    .run();
+
+  return {
+    resolved: true,
+    decision
+  };
+}
+
+async function applyReviewDecision(env, review, decision, now) {
+  let moderationStatus = "under_review";
+  let moderationReason = `review_${decision}`;
+
+  if (decision === "unbench") {
+    moderationStatus = "visible";
+    moderationReason = "review_unbenched";
+  }
+
+  if (decision === "keep_benched") {
+    moderationStatus = "benched";
+    moderationReason = "review_keep_benched";
+  }
+
+  if (decision === "warn_user") {
+    moderationStatus = "visible";
+    moderationReason = "review_warn_user";
+  }
+
+  if (decision === "escalate_user") {
+    moderationStatus = "benched";
+    moderationReason = "review_escalated_user";
+  }
+
+  if (review.content_type === "post") {
+    await env.DB.prepare(
+      `
+      UPDATE posts
+      SET moderation_status = ?,
+          moderation_reason = ?,
+          moderated_at = ?,
+          moderated_by_user_id = ?,
+          updated_at = ?
+      WHERE id = ?
+      `
+    )
+      .bind(
+        moderationStatus,
+        moderationReason,
+        now,
+        REVIEW_ACTING_USER_ID,
+        now,
+        review.content_id
+      )
+      .run();
+
+    return;
+  }
+
+  if (review.content_type === "comment") {
+    await env.DB.prepare(
+      `
+      UPDATE comments
+      SET moderation_status = ?,
+          moderation_reason = ?,
+          moderated_at = ?,
+          moderated_by_user_id = ?,
+          updated_at = ?
+      WHERE id = ?
+      `
+    )
+      .bind(
+        moderationStatus,
+        moderationReason,
+        now,
+        REVIEW_ACTING_USER_ID,
+        now,
+        review.content_id
+      )
+      .run();
+  }
 }
 
 async function getProfileKarma(env, username) {
