@@ -782,6 +782,7 @@ async function voteOnComment(request, env, commentId) {
       SELECT
         comments.id,
         comments.post_id,
+        comments.author_user_id,
         comments.status,
         posts.visibility,
         posts.status AS post_status
@@ -1436,17 +1437,7 @@ async function createRentARefCommentForComment(env, commentId) {
         )
         .run();
     }
-
-    if (moderationDecision.moderation_status === "under_review") {
-      await ensureContentReviewCase(env, {
-        contentType: "post",
-        contentId: postId,
-        openedByUserId: RENT_A_REF_USER_ID,
-        openedReason: moderationDecision.moderation_reason,
-        now
-      });
-    }
-    
+   
     if (moderationDecision.moderation_status === "under_review") {
       await ensureContentReviewCase(env, {
         contentType: "comment",
@@ -1679,6 +1670,16 @@ async function createRentARefComment(env, postId) {
           postId
         )
         .run();
+    }
+
+    if (moderationDecision.moderation_status === "under_review") {
+      await ensureContentReviewCase(env, {
+        contentType: "post",
+        contentId: postId,
+        openedByUserId: RENT_A_REF_USER_ID,
+        openedReason: moderationDecision.moderation_reason,
+        now
+      });
     }
     
     const rentARefBody = generateRentARefComment(post, chirpProfile, moderationDecision);
