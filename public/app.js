@@ -204,6 +204,20 @@ function renderProfileChirpTone(data) {
   `;
 }
 
+function isRentARefReadyForComment(comment) {
+  if (isRentARefComment(comment)) return false;
+
+  const lastRentARefAt = comment.last_rent_a_ref_at || "";
+  const lastCommentChirpAt = comment.last_comment_chirp_at || "";
+
+  if (!lastRentARefAt) return true;
+
+  if (!lastCommentChirpAt) return false;
+
+  return new Date(lastCommentChirpAt).getTime() >
+    new Date(lastRentARefAt).getTime();
+}
+
 function isRentARefReady(post) {
   if (Number(post.comments_enabled) !== 1) return false;
 
@@ -670,6 +684,7 @@ function renderComments(postId, comments) {
 
       const rentARefComment = isRentARefComment(comment);
       const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
+      const rentARefReadyForComment = isRentARefReadyForComment(comment);
 
       const commentVoteControlsHtml = rentARefComment
         ? ""
@@ -708,7 +723,7 @@ function renderComments(postId, comments) {
         : "";
 
       const commentChirpControlsHtml = rentARefComment
-        ?""
+        ? ""
         : `
           <div class="post-meta">
             <button
@@ -719,12 +734,22 @@ function renderComments(postId, comments) {
             >
               ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
             </button>
-
+      
             <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
               ${escapeHtml(chirpLabel)}
             </span>
+      
+            <button
+              class="button ghost rent-a-ref-button ${rentARefReadyForComment ? "" : "disabled"}"
+              type="button"
+              data-comment-id="${escapeHtml(comment.id)}"
+              ${rentARefReadyForComment ? "" : "disabled"}
+              title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
+            >
+              Rent-a-Ref
+            </button>
           </div>
-
+      
           <div class="chirp-profile-wrap">
             ${chirpProfileHtml}
           </div>
@@ -757,12 +782,12 @@ function renderComments(postId, comments) {
     })
     .join("");
 
-  wireCommentVoteControls();
-  wireChirpControls();
+wireCommentVoteControls();
+wireChirpControls();
+wireRentARefCommentControls();
 
-  if (typeof wireModerationControls === "function") {
-    wireModerationControls();
-  }
+if (typeof wireModerationControls === "function") {
+  wireModerationControls();
 }
 
 function wireCommentVoteControls() {
@@ -1130,6 +1155,50 @@ function wireChirpControls() {
         console.error(error);
       } finally {
         button.disabled = false;
+      }
+    });
+  });
+}
+
+function wireRentARefCommentControls() {
+  document.querySelectorAll(".rent-a-ref-button[data-comment-id]").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const commentId = button.dataset.commentId;
+      const commentCard = button.closest(".comment-card");
+      const commentsList = button.closest(".comments-list");
+      const postId = commentsList?.id?.replace("comments-", "");
+
+      if (!commentId || !postId || button.disabled) return;
+
+      try {
+        button.disabled = true;
+        button.textContent = "Calling it...";
+
+        const result = await fetchJson(`/api/comments/${encodeURIComponent(commentId)}/rent-a-ref`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+
+        const toggle = document.querySelector(`.comment-toggle[data-post-id="${CSS.escape(postId)}"]`);
+
+        if (toggle && result.comment_count !== undefined) {
+          toggle.textContent = `Comments (${Number(result.comment_count || 0)})`;
+        }
+
+        const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
+        renderComments(postId, data.comments || []);
+      } catch (error) {
+        alert(`Rent-a-Ref missed the call on this comment: ${error.message}`);
+        console.error(error);
+      } finally {
+        if (!button.classList.contains("disabled")) {
+          button.disabled = false;
+        }
+
+        button.textContent = "Rent-a-Ref";
       }
     });
   });
