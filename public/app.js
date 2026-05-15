@@ -686,6 +686,12 @@ function renderComments(postId, comments) {
       const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
       const rentARefReadyForComment = isRentARefReadyForComment(comment);
 
+      const moderationStatus = String(comment.moderation_status || "visible");
+      const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
+      const moderationBannerHtml = !rentARefComment
+        ? renderModerationBanner(comment, "comment")
+        : "";
+
       const commentVoteControlsHtml = rentARefComment
         ? ""
         : `
@@ -699,11 +705,11 @@ function renderComments(postId, comments) {
             >
               ▲
             </button>
-      
+
             <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
               ${Number(comment.score || 0)}
             </strong>
-      
+
             <button
               class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
               type="button"
@@ -715,12 +721,6 @@ function renderComments(postId, comments) {
             </button>
           </div>
         `;
-      
-      const moderationStatus = String(comment.moderation_status || "visible");
-      const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
-      const moderationBannerHtml = !rentARefComment
-        ? renderModerationBanner(comment, "comment")
-        : "";
 
       const commentChirpControlsHtml = rentARefComment
         ? ""
@@ -734,11 +734,11 @@ function renderComments(postId, comments) {
             >
               ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
             </button>
-      
+
             <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
               ${escapeHtml(chirpLabel)}
             </span>
-      
+
             <button
               class="button ghost rent-a-ref-button ${rentARefReadyForComment ? "" : "disabled"}"
               type="button"
@@ -749,7 +749,7 @@ function renderComments(postId, comments) {
               Rent-a-Ref
             </button>
           </div>
-      
+
           <div class="chirp-profile-wrap">
             ${chirpProfileHtml}
           </div>
@@ -782,12 +782,13 @@ function renderComments(postId, comments) {
     })
     .join("");
 
-wireCommentVoteControls();
-wireChirpControls();
-wireRentARefCommentControls();
+  wireCommentVoteControls();
+  wireChirpControls();
+  wireRentARefCommentControls();
 
-if (typeof wireModerationControls === "function") {
-  wireModerationControls();
+  if (typeof wireModerationControls === "function") {
+    wireModerationControls();
+  }
 }
 
 function wireCommentVoteControls() {
