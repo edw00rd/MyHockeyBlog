@@ -1206,7 +1206,7 @@ function wireRentARefCommentControls() {
 }
 
 function wireRentARefControls() {
-  document.querySelectorAll(".rent-a-ref-button").forEach((button) => {
+  document.querySelectorAll(".rent-a-ref-button[data-post-id]").forEach((button) => {
     if (button.dataset.wired) return;
     button.dataset.wired = "true";
 
