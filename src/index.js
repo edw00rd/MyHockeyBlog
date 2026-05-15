@@ -22,8 +22,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.15.1",
-        message: "Rent-a-Ref comments no longer support voting or chirp controls. ",
+        version: "0.16.0",
+        message: "Rent-a-Ref now works on comments.",
         timestamp: new Date().toISOString()
       });
     }
@@ -65,6 +65,12 @@ export default {
       return createRentARefComment(env, rentARefMatch[1]);
     }
 
+    const rentARefCommentMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/rent-a-ref$/);
+    
+    if (rentARefCommentMatch && method === "POST") {
+      return createRentARefCommentForComment(env, rentARefCommentMatch[1]);
+    }
+    
     const karmaMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/karma$/);
     
     if (karmaMatch && method === "GET") {
@@ -567,8 +573,30 @@ async function getComments(env, postId) {
             LIMIT 1
           ),
           0
-        ) AS user_chirped
-
+      ) AS user_chirped,
+      
+      COALESCE(
+        (
+          SELECT MAX(ref_comments.created_at)
+          FROM comments AS ref_comments
+          WHERE ref_comments.parent_comment_id = comments.id
+            AND ref_comments.author_user_id = ?
+            AND ref_comments.status = 'visible'
+        ),
+        ''
+      ) AS last_rent_a_ref_at,
+      
+      COALESCE(
+        (
+          SELECT MAX(COALESCE(content_chirps.updated_at, content_chirps.created_at))
+          FROM content_chirps
+          WHERE content_chirps.content_type = 'comment'
+            AND content_chirps.content_id = comments.id
+            AND content_chirps.status = 'active'
+        ),
+        ''
+      ) AS last_comment_chirp_at
+      
       FROM comments
       LEFT JOIN users ON users.id = comments.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
@@ -578,7 +606,7 @@ async function getComments(env, postId) {
       LIMIT 100
       `
     )
-      .bind(DEMO_USER_ID, DEMO_USER_ID, postId)
+      .bind(DEMO_USER_ID, DEMO_USER_ID, RENT_A_REF_USER_ID, postId)
       .all();
 
     return json({
@@ -1242,6 +1270,245 @@ function getChirpStatus(chirpCount) {
   if (chirpCount >= 5) return "sent_to_the_box";
   if (chirpCount >= 3) return "chirp_watch";
   return "normal";
+}
+
+async function createRentARefCommentForComment(env, commentId) {
+  try {
+    const targetComment = await env.DB.prepare(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.author_user_id,
+        comments.parent_comment_id,
+        comments.body,
+        comments.status,
+        comments.moderation_status,
+        comments.moderation_reason,
+        posts.visibility AS post_visibility,
+        posts.status AS post_status,
+        posts.comments_enabled
+      FROM comments
+      JOIN posts ON posts.id = comments.post_id
+      WHERE comments.id = ?
+      LIMIT 1
+      `
+    )
+      .bind(commentId)
+      .first();
+
+    if (
+      !targetComment ||
+      targetComment.status !== "visible" ||
+      targetComment.post_visibility !== "public" ||
+      targetComment.post_status !== "published"
+    ) {
+      return json(
+        {
+          ok: false,
+          error: "Comment not found."
+        },
+        404
+      );
+    }
+
+    if (targetComment.author_user_id === RENT_A_REF_USER_ID) {
+      return json(
+        {
+          ok: false,
+          error: "Rent-a-Ref cannot review Rent-a-Ref comments."
+        },
+        403
+      );
+    }
+
+    if (Number(targetComment.comments_enabled) !== 1) {
+      return json(
+        {
+          ok: false,
+          error: "Rent-a-Ref cannot comment because comments are disabled for this post."
+        },
+        403
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    await ensureRentARefAuthor(env, now);
+
+    const latestRentARefComment = await env.DB.prepare(
+      `
+      SELECT id, created_at
+      FROM comments
+      WHERE post_id = ?
+        AND parent_comment_id = ?
+        AND author_user_id = ?
+        AND status = 'visible'
+      ORDER BY created_at DESC
+      LIMIT 1
+      `
+    )
+      .bind(targetComment.post_id, commentId, RENT_A_REF_USER_ID)
+      .first();
+
+    const latestCommentChirp = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        COALESCE(updated_at, created_at) AS chirped_at
+      FROM content_chirps
+      WHERE content_type = 'comment'
+        AND content_id = ?
+        AND status = 'active'
+      ORDER BY COALESCE(updated_at, created_at) DESC
+      LIMIT 1
+      `
+    )
+      .bind(commentId)
+      .first();
+
+    const hasNewChirpSinceLastCall =
+      !latestRentARefComment ||
+      (
+        latestCommentChirp &&
+        new Date(latestCommentChirp.chirped_at).getTime() >
+          new Date(latestRentARefComment.created_at).getTime()
+      );
+
+    const countRowBefore = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS comment_count
+      FROM comments
+      WHERE post_id = ?
+        AND status = 'visible'
+      `
+    )
+      .bind(targetComment.post_id)
+      .first();
+
+    if (!hasNewChirpSinceLastCall) {
+      return json({
+        ok: true,
+        message: "Rent-a-Ref already made the latest call on this comment. New chirp needed before another call.",
+        already_called: true,
+        rent_a_ref_ready: false,
+        comment_count: Number(countRowBefore?.comment_count || 0)
+      });
+    }
+
+    const chirpProfile = await getChirpProfile(env, "comment", commentId);
+    const moderationDecision = getRentARefModerationDecision(targetComment, chirpProfile);
+    const rentARefTone = getRentARefCallTone(moderationDecision, chirpProfile);
+
+    if (moderationDecision.moderation_status !== "visible") {
+      await env.DB.prepare(
+        `
+        UPDATE comments
+        SET moderation_status = ?,
+            moderation_reason = ?,
+            moderated_at = ?,
+            moderated_by_user_id = ?,
+            updated_at = ?
+        WHERE id = ?
+        `
+      )
+        .bind(
+          moderationDecision.moderation_status,
+          moderationDecision.moderation_reason,
+          now,
+          RENT_A_REF_USER_ID,
+          now,
+          commentId
+        )
+        .run();
+    }
+
+    const rentARefBody = generateRentARefComment(targetComment, chirpProfile, moderationDecision);
+    const rentARefCommentId = crypto.randomUUID();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO comments (
+        id,
+        post_id,
+        author_user_id,
+        parent_comment_id,
+        body,
+        score,
+        status,
+        moderation_status,
+        moderation_reason,
+        moderated_at,
+        moderated_by_user_id,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        rentARefCommentId,
+        targetComment.post_id,
+        RENT_A_REF_USER_ID,
+        commentId,
+        rentARefBody,
+        0,
+        "visible",
+        "visible",
+        `rent_a_ref_${rentARefTone}`,
+        now,
+        RENT_A_REF_USER_ID,
+        now,
+        now
+      )
+      .run();
+
+    const countRow = await env.DB.prepare(
+      `
+      SELECT COUNT(*) AS comment_count
+      FROM comments
+      WHERE post_id = ?
+        AND status = 'visible'
+      `
+    )
+      .bind(targetComment.post_id)
+      .first();
+
+    return json(
+      {
+        ok: true,
+        message: "Rent-a-Ref made the call on the comment.",
+        already_called: false,
+        rent_a_ref_ready: false,
+        comment_count: Number(countRow?.comment_count || 0),
+        moderation: moderationDecision,
+        comment: {
+          id: rentARefCommentId,
+          post_id: targetComment.post_id,
+          parent_comment_id: commentId,
+          author_user_id: RENT_A_REF_USER_ID,
+          author_display_name: "Rent-a-Ref",
+          author_username: RENT_A_REF_USERNAME,
+          body: rentARefBody,
+          score: 0,
+          status: "visible",
+          moderation_status: "visible",
+          moderation_reason: `rent_a_ref_${rentARefTone}`,
+          created_at: now
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to summon Rent-a-Ref for comment.",
+        error: error.message
+      },
+      500
+    );
+  }
 }
 
 async function createRentARefComment(env, postId) {
