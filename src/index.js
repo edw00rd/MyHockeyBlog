@@ -23,7 +23,7 @@ export default {
       return json({
         ok: true,
         version: "0.15.1",
-        message: "RRent-a-Ref comments are protected and styled by call type. ",
+        message: "Rent-a-Ref comments no longer support voting or chirp controls. ",
         timestamp: new Date().toISOString()
       });
     }
