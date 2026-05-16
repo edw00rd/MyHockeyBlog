@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.18.1",
-        message: "Reset database content.",
+        version: "0.18.2",
+        message: "Anonymous Situation Room token review system refined.",
         timestamp: new Date().toISOString()
       });
     }
@@ -2266,7 +2266,7 @@ async function getOpenReviews(env) {
           FROM content_review_participants
           WHERE content_review_participants.review_id = content_reviews.id
             AND content_review_participants.reviewer_user_id = ?
-            AND content_review_participants.participation_status = 'completed'
+            AND content_review_participants.participation_status IN ('checked_out', 'completed')
         )
         AND EXISTS (
           SELECT 1
@@ -2716,7 +2716,7 @@ async function resolveReviewIfReady(env, review, now) {
     .bind(
       decision,
       now,
-      "anonymous_review_consensus",
+      null,
       review.id
     )
     .run();
@@ -2728,12 +2728,13 @@ async function resolveReviewIfReady(env, review, now) {
         checked_out_by_user_id = NULL,
         checked_out_at = NULL,
         expires_at = NULL,
+        burned_at = COALESCE(burned_at, ?),
         updated_at = ?
     WHERE review_id = ?
-      AND token_status IN ('available', 'checked_out')
+      AND token_status IN ('available', 'checked_out'))
     `
   )
-    .bind(now, review.id)
+   .bind(now, now, review.id)
     .run();
 
   return {
@@ -2782,7 +2783,7 @@ async function applyReviewDecision(env, review, decision, now) {
         moderationStatus,
         moderationReason,
         now,
-        REVIEW_ACTING_USER_ID,
+        RENT_A_REF_USER_ID,
         now,
         review.content_id
       )
@@ -2807,7 +2808,7 @@ async function applyReviewDecision(env, review, decision, now) {
         moderationStatus,
         moderationReason,
         now,
-        REVIEW_ACTING_USER_ID,
+        RENT_A_REF_USER_ID,
         now,
         review.content_id
       )
