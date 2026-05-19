@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.18.2",
-        message: "Anonymous Situation Room token review system refined.",
+        version: "0.19.0",
+        message: "User Identity v1 backend added.",
         timestamp: new Date().toISOString()
       });
     }
@@ -38,8 +38,20 @@ export default {
       return dbTest(env);
     }
 
+    if (url.pathname === "/api/me" && method === "GET") {
+      return getMe(request, env);
+    }
+    
+    if (url.pathname === "/api/users" && method === "GET") {
+      return listUsers(env);
+    }
+    
+    if (url.pathname === "/api/users" && method === "POST") {
+      return createUser(request, env);
+    }
+
     if (url.pathname === "/api/posts" && method === "GET") {
-      return getPosts(env);
+      return getPosts(request, env);
     }
 
     if (url.pathname === "/api/posts" && method === "POST") {
@@ -48,7 +60,7 @@ export default {
     const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments$/);
     
     if (commentsMatch && method === "GET") {
-      return getComments(env, commentsMatch[1]);
+      return getComments(request, env, commentsMatch[1]);
     }
     
     if (commentsMatch && method === "POST") {
@@ -78,7 +90,7 @@ export default {
     }
     
     if (url.pathname === "/api/reviews" && method === "GET") {
-      return getOpenReviews(env);
+      return getOpenReviews(request, env);
     }
     
     const reviewCheckoutMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/checkout$/);
@@ -170,8 +182,280 @@ async function dbTest(env) {
   }
 }
 
-async function getPosts(env) {
+function getCurrentUserId(request) {
+  const headerUserId = String(request.headers.get("x-demo-user-id") || "").trim();
+
+  if (headerUserId) {
+    return headerUserId;
+  }
+
+  return DEMO_USER_ID;
+}
+
+async function getCurrentUser(request, env) {
+  const currentUserId = getCurrentUserId(request);
+  const now = new Date().toISOString();
+
+  if (currentUserId === DEMO_USER_ID) {
+    await ensureDemoAuthor(env, now);
+  }
+
+  const user = await env.DB.prepare(
+    `
+    SELECT
+      users.id AS user_id,
+      users.display_name,
+      users.role,
+      profiles.id AS profile_id,
+      profiles.username,
+      profiles.position,
+      profiles.jersey_number,
+      profiles.team_name,
+      profiles.skill_level
+    FROM users
+    LEFT JOIN profiles ON profiles.user_id = users.id
+    WHERE users.id = ?
+    LIMIT 1
+    `
+  )
+    .bind(currentUserId)
+    .first();
+
+  if (!user) {
+    throw new Error("Selected user does not exist.");
+  }
+
+  return user;
+}
+
+async function getMe(request, env) {
   try {
+    const user = await getCurrentUser(request, env);
+
+    return json({
+      ok: true,
+      user
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to load current user.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function listUsers(env) {
+  try {
+    const now = new Date().toISOString();
+
+    await ensureDemoAuthor(env, now);
+
+    const result = await env.DB.prepare(
+      `
+      SELECT
+        users.id AS user_id,
+        users.display_name,
+        users.role,
+        profiles.id AS profile_id,
+        profiles.username,
+        profiles.position,
+        profiles.jersey_number,
+        profiles.team_name,
+        profiles.skill_level,
+        profiles.created_at
+      FROM users
+      LEFT JOIN profiles ON profiles.user_id = users.id
+      WHERE users.id <> ?
+      ORDER BY profiles.created_at ASC, users.created_at ASC
+      `
+    )
+      .bind(RENT_A_REF_USER_ID)
+      .all();
+
+    return json({
+      ok: true,
+      users: result.results || []
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to load users.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function createUser(request, env) {
+  try {
+    const body = await readJsonBody(request);
+
+    const displayName = String(body.display_name || "").trim();
+    const requestedUsername = String(body.username || displayName || "").trim();
+    const username = slugifyUsername(requestedUsername);
+    const position = String(body.position || "Skater").trim();
+    const jerseyNumber = String(body.jersey_number || "").trim();
+    const teamName = String(body.team_name || "MyHockeyBlog Test Team").trim();
+    const skillLevel = String(body.skill_level || "Demo user").trim();
+
+    if (!displayName) {
+      return json(
+        {
+          ok: false,
+          error: "display_name is required."
+        },
+        400
+      );
+    }
+
+    if (!username) {
+      return json(
+        {
+          ok: false,
+          error: "A valid username is required."
+        },
+        400
+      );
+    }
+
+    const existing = await env.DB.prepare(
+      `
+      SELECT user_id, username
+      FROM profiles
+      WHERE username = ?
+      LIMIT 1
+      `
+    )
+      .bind(username)
+      .first();
+
+    if (existing) {
+      return json(
+        {
+          ok: false,
+          error: "Username is already taken."
+        },
+        409
+      );
+    }
+
+    const now = new Date().toISOString();
+    const userId = `user_${crypto.randomUUID()}`;
+    const profileId = `profile_${crypto.randomUUID()}`;
+
+    await env.DB.prepare(
+      `
+      INSERT INTO users (
+        id,
+        email,
+        display_name,
+        auth_provider,
+        auth_provider_user_id,
+        role,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        userId,
+        `${username}@example.com`,
+        displayName,
+        "demo",
+        `demo-${userId}`,
+        "user",
+        now,
+        now
+      )
+      .run();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO profiles (
+        id,
+        user_id,
+        username,
+        display_name,
+        bio,
+        position,
+        shoots,
+        jersey_number,
+        team_name,
+        home_rink,
+        skill_level,
+        profile_visibility,
+        show_stats_publicly,
+        show_calendar_publicly,
+        allow_post_tagging,
+        allow_media_tagging,
+        require_tag_approval,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        profileId,
+        userId,
+        username,
+        displayName,
+        "Demo user account for MyHockeyBlog testing.",
+        position,
+        null,
+        jerseyNumber || null,
+        teamName,
+        "Demo Ice Arena",
+        skillLevel,
+        "public",
+        1,
+        1,
+        1,
+        1,
+        1,
+        now,
+        now
+      )
+      .run();
+
+    return json(
+      {
+        ok: true,
+        user: {
+          user_id: userId,
+          profile_id: profileId,
+          username,
+          display_name: displayName,
+          position,
+          jersey_number: jerseyNumber,
+          team_name: teamName,
+          skill_level: skillLevel
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to create user.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+async function getPosts(request, env) {
+  try {
+    const currentUser = await getCurrentUser(request, env);
     const result = await env.DB.prepare(
       `
       SELECT
@@ -329,7 +613,7 @@ async function getPosts(env) {
       LIMIT 25
       `
     )
-      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, DEMO_USER_ID)
+      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, currentUser.user_id)
       .all();
 
     return json({
@@ -387,7 +671,7 @@ async function createPost(request, env) {
 
     const now = new Date().toISOString();
 
-    await ensureDemoAuthor(env, now);
+   const currentUser = await getCurrentUser(request, env);
 
     const postId = crypto.randomUUID();
 
@@ -411,7 +695,7 @@ async function createPost(request, env) {
     )
       .bind(
         postId,
-        DEMO_USER_ID,
+        currentUser.user_id,
         title,
         content,
         safePostType,
@@ -424,7 +708,7 @@ async function createPost(request, env) {
       )
       .run();
 
-    const savedTags = await savePostTags(env, postId, rawTags, DEMO_USER_ID, now);
+    const savedTags = await savePostTags(env, postId, rawTags, currentUser.user_id, now);
 
     return json(
       {
@@ -455,8 +739,9 @@ async function createPost(request, env) {
   }
 }
 
-async function getComments(env, postId) {
+async function getComments(request, env, postId) {
   try {
+    const currentUser = await getCurrentUser(request, env);
     const post = await env.DB.prepare(
       `
       SELECT id, comments_enabled
@@ -628,7 +913,7 @@ async function getComments(env, postId) {
       LIMIT 100
       `
     )
-      .bind(DEMO_USER_ID, DEMO_USER_ID, RENT_A_REF_USER_ID, postId)
+      .bind(currentUser.user_id, currentUser.user_id, RENT_A_REF_USER_ID, postId)
       .all();
 
     return json({
@@ -708,8 +993,7 @@ async function createComment(request, env, postId) {
     }
 
     const now = new Date().toISOString();
-
-    await ensureDemoAuthor(env, now);
+    const currentUser = await getCurrentUser(request, env);
 
     const commentId = crypto.randomUUID();
 
@@ -732,7 +1016,7 @@ async function createComment(request, env, postId) {
       .bind(
         commentId,
         postId,
-        DEMO_USER_ID,
+        currentUser.user_id,
         null,
         commentBody,
         0,
@@ -749,7 +1033,7 @@ async function createComment(request, env, postId) {
         comment: {
           id: commentId,
           post_id: postId,
-          author_user_id: DEMO_USER_ID,
+          author_user_id: currentUser.user_id,
           body: commentBody,
           score: 0,
           status: "visible",
@@ -824,8 +1108,7 @@ async function voteOnComment(request, env, commentId) {
     }
 
     const now = new Date().toISOString();
-
-    await ensureDemoAuthor(env, now);
+    const currentUser = await getCurrentUser(request, env);
 
     const existingVote = await env.DB.prepare(
       `
@@ -836,7 +1119,7 @@ async function voteOnComment(request, env, commentId) {
       LIMIT 1
       `
     )
-      .bind(commentId, DEMO_USER_ID)
+      .bind(commentId, currentUser.user_id)
       .first();
 
     let userVote = requestedVote;
@@ -883,7 +1166,7 @@ async function voteOnComment(request, env, commentId) {
         .bind(
           crypto.randomUUID(),
           commentId,
-          DEMO_USER_ID,
+          currentUser.user_id,
           null,
           requestedVote,
           now,
@@ -978,8 +1261,7 @@ async function createChirp(request, env) {
     const profile = getChirpPresetProfile(safeChirpType);
     const safeNote = note.slice(0, 500);
     const now = new Date().toISOString();
-
-    await ensureDemoAuthor(env, now);
+    const currentUser = await getCurrentUser(request, env);
 
     const contentExists = await verifyChirpContentExists(env, contentType, contentId);
 
@@ -1003,7 +1285,7 @@ async function createChirp(request, env) {
       LIMIT 1
       `
     )
-      .bind(contentType, contentId, DEMO_USER_ID)
+      .bind(contentType, contentId, currentUser.user_id)
       .first();
 
     let userChirped = true;
@@ -1081,7 +1363,7 @@ async function createChirp(request, env) {
           crypto.randomUUID(),
           contentType,
           contentId,
-          DEMO_USER_ID,
+          currentUser.user_id,
           safeReason,
           safeNote,
           "active",
@@ -2200,12 +2482,13 @@ async function releaseExpiredReviewTokens(env, now) {
   ).run();
 }
 
-async function getOpenReviews(env) {
+async function getOpenReviews(request, env) {
   try {
     const now = new Date().toISOString();
 
     await releaseExpiredReviewTokens(env, now);
-
+    const currentUser = await getCurrentUser(request, env);
+    
     const result = await env.DB.prepare(
       `
       SELECT
@@ -2278,7 +2561,7 @@ async function getOpenReviews(env) {
       LIMIT 50
       `
     )
-      .bind(REVIEW_ACTING_USER_ID)
+      .bind(currentUser.user_id)
       .all();
 
     return json({
@@ -2307,7 +2590,8 @@ async function getOpenReviews(env) {
 async function checkoutReview(request, env, reviewId) {
   try {
     const now = new Date().toISOString();
-
+    const currentUser = await getCurrentUser(request, env);
+    
     await releaseExpiredReviewTokens(env, now);
 
     const review = await env.DB.prepare(
@@ -2346,7 +2630,7 @@ async function checkoutReview(request, env, reviewId) {
       LIMIT 1
       `
     )
-      .bind(reviewId, REVIEW_ACTING_USER_ID)
+      .bind(reviewId, currentUser.user_id)
       .first();
 
     if (participant?.participation_status === "completed") {
@@ -2370,7 +2654,7 @@ async function checkoutReview(request, env, reviewId) {
         LIMIT 1
         `
       )
-        .bind(participant.token_id, REVIEW_ACTING_USER_ID)
+        .bind(participant.token_id, currentUser.user_id)
         .first();
 
       if (existingToken) {
@@ -2423,7 +2707,7 @@ async function checkoutReview(request, env, reviewId) {
         AND token_status = 'available'
       `
     )
-      .bind(REVIEW_ACTING_USER_ID, now, expiresAt, now, token.id)
+      .bind(currentUser.user_id, now, expiresAt, now, token.id)
       .run();
 
     await env.DB.prepare(
@@ -2448,7 +2732,7 @@ async function checkoutReview(request, env, reviewId) {
       .bind(
         crypto.randomUUID(),
         reviewId,
-        REVIEW_ACTING_USER_ID,
+        currentUser.user_id,
         "checked_out",
         token.id,
         now,
@@ -2504,6 +2788,7 @@ async function castReviewVote(request, env, reviewId) {
     }
 
     const now = new Date().toISOString();
+    const currentUser = await getCurrentUser(request, env);
 
     await releaseExpiredReviewTokens(env, now);
 
@@ -2556,7 +2841,7 @@ async function castReviewVote(request, env, reviewId) {
     if (
       !token ||
       token.token_status !== "checked_out" ||
-      token.checked_out_by_user_id !== REVIEW_ACTING_USER_ID
+      token.checked_out_by_user_id !== currentUser.user_id
     ) {
       return json(
         {
@@ -2620,7 +2905,7 @@ async function castReviewVote(request, env, reviewId) {
         AND reviewer_user_id = ?
       `
     )
-      .bind(now, reviewId, REVIEW_ACTING_USER_ID)
+      .bind(now, reviewId, currentUser.user_id)
       .run();
 
     const updatedReview = await env.DB.prepare(
@@ -2731,7 +3016,7 @@ async function resolveReviewIfReady(env, review, now) {
         burned_at = COALESCE(burned_at, ?),
         updated_at = ?
     WHERE review_id = ?
-      AND token_status IN ('available', 'checked_out'))
+      AND token_status IN ('available', 'checked_out')
     `
   )
    .bind(now, now, review.id)
@@ -3345,6 +3630,16 @@ function parseTags(rawTags) {
   }
 
   return parsedTags.slice(0, 10);
+}
+
+function slugifyUsername(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^@/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
 }
 
 function slugifyTag(tag) {
