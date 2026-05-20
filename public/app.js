@@ -135,6 +135,11 @@ function renderUserControls() {
   const name = $("#current-user-name");
   const meta = $("#current-user-meta");
   const select = $("#current-user-select");
+  const apiReviewsLink = $("#api-reviews-link");
+
+  if (apiReviewsLink) {
+    apiReviewsLink.hidden = !currentUserCanReviewContent();
+  }
 
   if (!currentUser) return;
 
