@@ -98,6 +98,71 @@
         </article>
       </section>
 
+            <section id="user-identity" class="section-shell identity-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">User Identity v1</p>
+            <h2>Current User</h2>
+            <p class="muted">
+              Temporary demo identity switcher. This controls who creates posts, comments, chirps, and Situation Room reviews.
+            </p>
+          </div>
+          <a class="button ghost" href="/api/users" target="_blank" rel="noreferrer">
+            API Users
+          </a>
+        </div>
+
+        <div class="identity-grid">
+          <div class="panel identity-panel">
+            <p class="muted small">Acting as</p>
+            <h3 id="current-user-name">Loading...</h3>
+            <p id="current-user-meta" class="muted small"></p>
+
+            <label>
+              Switch user
+              <select id="current-user-select">
+                <option value="">Loading users...</option>
+              </select>
+            </label>
+          </div>
+
+          <form id="user-create-form" class="panel form-panel compact">
+            <h3>Create test user</h3>
+
+            <label>
+              Display name
+              <input name="display_name" type="text" placeholder="Captain Test One" required />
+            </label>
+
+            <div class="form-row">
+              <label>
+                Username
+                <input name="username" type="text" placeholder="captain-test-one" />
+              </label>
+
+              <label>
+                Position
+                <input name="position" type="text" placeholder="Captain" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                Jersey / badge
+                <input name="jersey_number" type="text" placeholder="C" />
+              </label>
+
+              <label>
+                Team name
+                <input name="team_name" type="text" placeholder="Situation Room Testers" />
+              </label>
+            </div>
+
+            <button class="button secondary" type="submit">Create and switch</button>
+          </form>
+        </div>
+      </section>
+
       <section id="new-post" class="section-shell two-column">
         <div>
           <p class="eyebrow">Post composer</p>
