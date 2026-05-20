@@ -229,36 +229,27 @@ async function getCurrentUser(request, env) {
 }
 
 function getLeadershipAccess(user = {}) {
-  const position = String(user.position || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-  const jerseyNumber = String(user.jersey_number || "")
-    .trim()
-    .toUpperCase();
-
-  const role = String(user.role || "")
+  const leadershipRole = String(user.leadership_role || "none")
     .toLowerCase()
     .trim();
+
+  const position = String(user.position || "").toLowerCase();
+  const role = String(user.role || "").toLowerCase().trim();
 
   const isAdmin = role === "admin" || role === "owner";
+  const isGoalie = position === "goalie";
 
-  const isAlternateCaptain =
-    position.includes("alternate") ||
-    position.includes("assistant") ||
-    jerseyNumber === "A";
+  if (isGoalie) {
+    return {
+      tier: "member",
+      label: "Member",
+      letter: null,
+      can_review_content: false,
+      can_review_accounts: false
+    };
+  }
 
-  const isCaptain =
-    !isAlternateCaptain &&
-    (
-      position === "captain" ||
-      position.startsWith("captain ") ||
-      position.endsWith(" captain") ||
-      jerseyNumber === "C"
-    );
-
-  if (isAdmin || isCaptain) {
+  if (isAdmin || leadershipRole === "captain") {
     return {
       tier: "captain",
       label: "Captain",
@@ -268,7 +259,7 @@ function getLeadershipAccess(user = {}) {
     };
   }
 
-  if (isAlternateCaptain) {
+  if (leadershipRole === "alternate_captain") {
     return {
       tier: "alternate_captain",
       label: "Alternate Captain",
@@ -375,18 +366,11 @@ async function createUser(request, env) {
     const displayName = String(body.display_name || "").trim();
     const requestedUsername = String(body.username || displayName || "").trim();
     const username = slugifyUsername(requestedUsername);
-    const position = String(body.position || "Skater").trim();
-    
-    const requestedJerseyNumber = String(body.jersey_number || "").trim();
-    const normalizedPosition = position.toLowerCase();
-    
-    let jerseyNumber = requestedJerseyNumber;
-    
-    if (!jerseyNumber && normalizedPosition.includes("alternate")) {
-      jerseyNumber = "A";
-    } else if (!jerseyNumber && normalizedPosition.includes("captain")) {
-      jerseyNumber = "C";
-    }
+
+    const positionResult = normalizeHockeyPosition(body.position);
+    const jerseyResult = normalizeJerseyNumber(body.jersey_number);
+    const leadershipResult = normalizeLeadershipRole(body.leadership_role, positionResult.position);
+
     const teamName = String(body.team_name || "MyHockeyBlog Test Team").trim();
     const skillLevel = String(body.skill_level || "Demo user").trim();
 
@@ -409,6 +393,172 @@ async function createUser(request, env) {
         400
       );
     }
+
+    if (!positionResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: positionResult.error,
+          allowed_positions: positionResult.allowed_positions
+        },
+        400
+      );
+    }
+
+    if (!jerseyResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: jerseyResult.error
+        },
+        400
+      );
+    }
+
+    if (!leadershipResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: leadershipResult.error,
+          allowed_leadership_roles: leadershipResult.allowed_leadership_roles
+        },
+        400
+      );
+    }
+
+    const existing = await env.DB.prepare(
+      `
+      SELECT user_id, username
+      FROM profiles
+      WHERE username = ?
+      LIMIT 1
+      `
+    )
+      .bind(username)
+      .first();
+
+    if (existing) {
+      return json(
+        {
+          ok: false,
+          error: "Username is already taken."
+        },
+        409
+      );
+    }
+
+    const now = new Date().toISOString();
+    const userId = `user_${crypto.randomUUID()}`;
+    const profileId = `profile_${crypto.randomUUID()}`;
+
+    await env.DB.prepare(
+      `
+      INSERT INTO users (
+        id,
+        email,
+        display_name,
+        auth_provider,
+        auth_provider_user_id,
+        role,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        userId,
+        `${username}@example.com`,
+        displayName,
+        "demo",
+        `demo-${userId}`,
+        "user",
+        now,
+        now
+      )
+      .run();
+
+    await env.DB.prepare(
+      `
+      INSERT INTO profiles (
+        id,
+        user_id,
+        username,
+        display_name,
+        bio,
+        position,
+        shoots,
+        jersey_number,
+        leadership_role,
+        team_name,
+        home_rink,
+        skill_level,
+        profile_visibility,
+        show_stats_publicly,
+        show_calendar_publicly,
+        allow_post_tagging,
+        allow_media_tagging,
+        require_tag_approval,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        profileId,
+        userId,
+        username,
+        displayName,
+        "Demo user account for MyHockeyBlog testing.",
+        positionResult.position,
+        null,
+        jerseyResult.jersey_number,
+        leadershipResult.leadership_role,
+        teamName,
+        "Demo Ice Arena",
+        skillLevel,
+        "public",
+        1,
+        1,
+        1,
+        1,
+        1,
+        now,
+        now
+      )
+      .run();
+
+    return json(
+      {
+        ok: true,
+        user: {
+          user_id: userId,
+          profile_id: profileId,
+          username,
+          display_name: displayName,
+          position: positionResult.position,
+          jersey_number: jerseyResult.jersey_number,
+          leadership_role: leadershipResult.leadership_role,
+          leadership_label: leadershipResult.label,
+          team_name: teamName,
+          skill_level: skillLevel,
+          jersey_warnings: jerseyResult.warnings
+        }
+      },
+      201
+    );
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to create user.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
 
     const existing = await env.DB.prepare(
       `
@@ -3752,6 +3902,163 @@ function slugifyTag(tag) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
+}
+
+function normalizeHockeyPosition(value) {
+  const allowedPositions = [
+    "Right Wing",
+    "Left Wing",
+    "Center",
+    "Right Defenseman",
+    "Left Defenseman",
+    "Goalie"
+  ];
+
+  const aliases = {
+    rw: "Right Wing",
+    "right wing": "Right Wing",
+    lw: "Left Wing",
+    "left wing": "Left Wing",
+    c: "Center",
+    center: "Center",
+    centre: "Center",
+    rd: "Right Defenseman",
+    "right defenseman": "Right Defenseman",
+    "right defensemen": "Right Defenseman",
+    "right defense": "Right Defenseman",
+    ld: "Left Defenseman",
+    "left defenseman": "Left Defenseman",
+    "left defensemen": "Left Defenseman",
+    "left defense": "Left Defenseman",
+    goalie: "Goalie",
+    goaltender: "Goalie",
+    goalkeeper: "Goalie"
+  };
+
+  const raw = String(value || "Right Wing").trim();
+  const normalized = raw.toLowerCase().replace(/\s+/g, " ");
+
+  const position = aliases[normalized] || allowedPositions.find(
+    (allowed) => allowed.toLowerCase() === normalized
+  );
+
+  if (!position) {
+    return {
+      ok: false,
+      error: "Position must be a valid hockey position, not a leadership title.",
+      allowed_positions: allowedPositions
+    };
+  }
+
+  return {
+    ok: true,
+    position,
+    allowed_positions: allowedPositions
+  };
+}
+
+function normalizeLeadershipRole(value, position) {
+  const allowedLeadershipRoles = ["none", "alternate_captain", "captain"];
+
+  const aliases = {
+    "": "none",
+    none: "none",
+    member: "none",
+    player: "none",
+    a: "alternate_captain",
+    alternate: "alternate_captain",
+    "alternate captain": "alternate_captain",
+    "assistant captain": "alternate_captain",
+    c: "captain",
+    captain: "captain"
+  };
+
+  const raw = String(value || "none").trim();
+  const normalized = raw.toLowerCase().replace(/[-_\s]+/g, " ");
+  const leadershipRole = aliases[normalized] || String(value || "none").trim();
+
+  if (!allowedLeadershipRoles.includes(leadershipRole)) {
+    return {
+      ok: false,
+      error: "leadership_role must be none, alternate_captain, or captain.",
+      allowed_leadership_roles: allowedLeadershipRoles
+    };
+  }
+
+  if (position === "Goalie" && leadershipRole !== "none") {
+    return {
+      ok: false,
+      error: "Goalies cannot be Captain or Alternate Captain in this app model.",
+      allowed_leadership_roles: allowedLeadershipRoles
+    };
+  }
+
+  const labels = {
+    none: "None",
+    alternate_captain: "Alternate Captain",
+    captain: "Captain"
+  };
+
+  return {
+    ok: true,
+    leadership_role: leadershipRole,
+    label: labels[leadershipRole],
+    allowed_leadership_roles: allowedLeadershipRoles
+  };
+}
+
+function normalizeJerseyNumber(value) {
+  const raw = String(value || "").trim();
+
+  if (!/^\d+$/.test(raw)) {
+    throw new Error("Jersey number must be a whole number from 1 to 99.");
+  }
+
+  const number = Number(raw);
+
+  if (!Number.isInteger(number) || number < 1 || number > 99) {
+    throw new Error("Jersey number must be a whole number from 1 to 99.");
+  }
+
+  return String(number);
+}
+
+  const number = Number(raw);
+
+  if (!Number.isInteger(number) || number < 1 || number > 99) {
+    return {
+      ok: false,
+      error: "Jersey number must be a whole number from 1 to 99."
+    };
+  }
+
+  const warnings = [];
+
+  if (number === 1) {
+    warnings.push("Number 1 is traditionally associated with goaltenders.");
+  }
+
+  if (number >= 30 && number <= 39) {
+    warnings.push("Numbers in the 30s are traditionally common goalie numbers.");
+  }
+
+  if (number === 66) {
+    warnings.push("Number 66 is widely treated as off-limits out of respect for Mario Lemieux.");
+  }
+
+  if (number === 69) {
+    warnings.push("Number 69 is often discouraged by teams and leagues.");
+  }
+
+  if (number === 99) {
+    warnings.push("Number 99 is retired league-wide in the NHL for Wayne Gretzky and is off-limits in many organized leagues.");
+  }
+
+  return {
+    ok: true,
+    jersey_number: String(number),
+    warnings
+  };
 }
 
 async function savePostTags(env, postId, rawTags, createdByUserId, now) {
