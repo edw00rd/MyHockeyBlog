@@ -2,7 +2,28 @@ const DEMO_USERNAME = "demo-skater";
 const RENT_A_REF_USER_ID = "user_rent_a_ref_001";
 const RENT_A_REF_USERNAME = "rent-a-ref";
 
+const SELECTED_USER_STORAGE_KEY = "myhockeyblog.selectedUserId";
+
+let currentUser = null;
+let knownUsers = [];
+
 const $ = (selector) => document.querySelector(selector);
+
+function getSelectedUserId() {
+  return localStorage.getItem(SELECTED_USER_STORAGE_KEY) || "";
+}
+
+function setSelectedUserId(userId) {
+  if (userId) {
+    localStorage.setItem(SELECTED_USER_STORAGE_KEY, userId);
+  } else {
+    localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+  }
+}
+
+function getCurrentUsername() {
+  return currentUser?.username || DEMO_USERNAME;
+}
 
 function setText(selector, value) {
   const element = $(selector);
@@ -33,13 +54,18 @@ function formatDate(value) {
 }
 
 async function fetchJson(url, options = {}) {
+  const selectedUserId = getSelectedUserId();
+
+  const headers = {
+    accept: "application/json",
+    "content-type": "application/json",
+    ...(selectedUserId ? { "x-demo-user-id": selectedUserId } : {}),
+    ...(options.headers || {})
+  };
+
   const response = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      ...(options.headers || {})
-    },
-    ...options
+    ...options,
+    headers
   });
 
   const contentType = response.headers.get("content-type") || "";
@@ -56,13 +82,18 @@ async function fetchJson(url, options = {}) {
 
 async function loadHomepage() {
   try {
+    await loadIdentity();
+
+    const username = getCurrentUsername();
+
     const [profileData, postsData, karmaData, reviewsData] = await Promise.all([
-      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}`),
+      fetchJson(`/api/profile/${encodeURIComponent(username)}`),
       fetchJson("/api/posts"),
-      fetchJson(`/api/profile/${encodeURIComponent(DEMO_USERNAME)}/karma`),
+      fetchJson(`/api/profile/${encodeURIComponent(username)}/karma`),
       fetchJson("/api/reviews")
     ]);
 
+    renderUserControls();
     renderProfile(profileData);
     renderKarma(karmaData);
     renderLeadership(karmaData);
@@ -70,9 +101,154 @@ async function loadHomepage() {
     renderPosts(postsData.posts || []);
     renderSituationRoom(reviewsData.reviews || []);
     renderEventsPlaceholder();
+    wireUserControls();
     wireForms();
   } catch (error) {
     renderError(error);
+  }
+}
+
+async function loadIdentity() {
+  try {
+    const meData = await fetchJson("/api/me");
+    currentUser = meData.user || null;
+
+    if (currentUser?.user_id) {
+      setSelectedUserId(currentUser.user_id);
+    }
+  } catch (error) {
+    setSelectedUserId("");
+
+    const fallbackMeData = await fetchJson("/api/me");
+    currentUser = fallbackMeData.user || null;
+
+    if (currentUser?.user_id) {
+      setSelectedUserId(currentUser.user_id);
+    }
+  }
+
+  const usersData = await fetchJson("/api/users");
+  knownUsers = usersData.users || [];
+}
+
+function renderUserControls() {
+  const name = $("#current-user-name");
+  const meta = $("#current-user-meta");
+  const select = $("#current-user-select");
+
+  if (!currentUser) return;
+
+  if (name) {
+    name.textContent = currentUser.display_name || currentUser.username || "Unknown User";
+  }
+
+  if (meta) {
+    const parts = [
+      currentUser.username ? `@${currentUser.username}` : "",
+      currentUser.position || "",
+      currentUser.jersey_number ? `#${currentUser.jersey_number}` : "",
+      currentUser.team_name || "",
+      currentUser.skill_level || ""
+    ].filter(Boolean);
+
+    meta.textContent = parts.join(" • ");
+  }
+
+  if (select) {
+    select.innerHTML = knownUsers
+      .map((user) => {
+        const labelParts = [
+          user.display_name || user.username || user.user_id,
+          user.username ? `@${user.username}` : "",
+          user.position || "",
+          user.jersey_number ? `#${user.jersey_number}` : ""
+        ].filter(Boolean);
+
+        return `
+          <option value="${escapeHtml(user.user_id)}">
+            ${escapeHtml(labelParts.join(" • "))}
+          </option>
+        `;
+      })
+      .join("");
+
+    select.value = currentUser.user_id;
+  }
+}
+
+function wireUserControls() {
+  const select = $("#current-user-select");
+  const form = $("#user-create-form");
+
+  if (select && !select.dataset.wired) {
+    select.dataset.wired = "true";
+
+    select.addEventListener("change", async () => {
+      const userId = select.value;
+
+      setSelectedUserId(userId);
+
+      try {
+        await loadHomepage();
+      } catch (error) {
+        alert(`Could not switch user: ${error.message}`);
+      }
+    });
+  }
+
+  if (form && !form.dataset.wired) {
+    form.dataset.wired = "true";
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const button = form.querySelector("button[type='submit']");
+      const data = new FormData(form);
+
+      const displayName = String(data.get("display_name") || "").trim();
+      const username = String(data.get("username") || "").trim();
+      const position = String(data.get("position") || "Skater").trim();
+      const jerseyNumber = String(data.get("jersey_number") || "").trim();
+      const teamName = String(data.get("team_name") || "MyHockeyBlog Test Team").trim();
+
+      if (!displayName) {
+        alert("Display name is required.");
+        return;
+      }
+
+      try {
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Creating...";
+        }
+
+        const result = await fetchJson("/api/users", {
+          method: "POST",
+          body: JSON.stringify({
+            display_name: displayName,
+            username,
+            position,
+            jersey_number: jerseyNumber,
+            team_name: teamName,
+            skill_level: "Demo user"
+          })
+        });
+
+        if (result.user?.user_id) {
+          setSelectedUserId(result.user.user_id);
+        }
+
+        form.reset();
+        await loadHomepage();
+      } catch (error) {
+        alert(`Could not create user: ${error.message}`);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Create and switch";
+        }
+      }
+    });
   }
 }
 
@@ -297,10 +473,26 @@ function renderModerationBanner(content, contentType = "post") {
   const status = String(content.moderation_status || "visible");
   const reason = String(content.moderation_reason || "");
 
+  if (status === "visible" && reason === "review_unbenched") {
+    return `
+      <div class="box-banner review-cleared">
+        <div>
+          <strong>✅ Review Complete: Waved Off</strong>
+          <p>The Situation Room reviewed this ${contentType} and returned it to the feed.</p>
+        </div>
+      </div>
+    `;
+  }
+
   if (status === "visible") return "";
 
   const targetId = `${contentType}-boxed-${content.id}`;
   const message = getModerationMessage(contentType, status, reason);
+
+  const locked =
+    status === "under_review" ||
+    reason === "review_keep_benched" ||
+    reason === "review_escalated_user";
 
   return `
     <div class="box-banner ${status === "under_review" ? "under-review" : "benched"}">
@@ -309,13 +501,17 @@ function renderModerationBanner(content, contentType = "post") {
         <p>${escapeHtml(message.body)}</p>
       </div>
 
-      <button
-        class="inline-button show-boxed-content"
-        type="button"
-        data-target-id="${escapeHtml(targetId)}"
-      >
-        Show anyway
-      </button>
+      ${
+        locked
+          ? `<span class="badge">Locked pending review</span>`
+          : `<button
+              class="inline-button show-boxed-content"
+              type="button"
+              data-target-id="${escapeHtml(targetId)}"
+            >
+              Show anyway
+            </button>`
+      }
     </div>
   `;
 }
@@ -393,6 +589,9 @@ function renderSituationRoom(reviews) {
       const body = getReviewBody(review);
       const typeLabel = getReviewTypeLabel(review);
       const reasonLabel = formatReviewReason(review.opened_reason);
+      const completed = Number(review.reviews_completed || 0);
+      const needed = Number(review.reviews_needed || 3);
+      const available = Number(review.tokens_available || 0);
 
       return `
         <article class="review-card" data-review-id="${escapeHtml(review.id)}">
@@ -408,10 +607,10 @@ function renderSituationRoom(reviews) {
               <h3>${escapeHtml(title)}</h3>
             </div>
 
-            <div class="review-scoreboard" aria-label="Review vote totals">
-              <span>Votes: ${Number(review.vote_count || 0)}</span>
-              <span>Wave off: ${Number(review.unbench_votes || 0)}</span>
-              <span>Keep: ${Number(review.keep_benched_votes || 0)}</span>
+            <div class="review-scoreboard" aria-label="Neutral review progress">
+              <span>Reviews: ${completed}/${needed}</span>
+              <span>Open slots: ${available}</span>
+              <span>Status: pending</span>
             </div>
           </div>
 
@@ -421,40 +620,38 @@ function renderSituationRoom(reviews) {
 
           <div class="review-actions">
             <button
-              class="button secondary review-vote-button"
+              class="button secondary review-checkout-button"
               type="button"
               data-review-id="${escapeHtml(review.id)}"
-              data-vote="unbench"
             >
-              Wave it off
+              Review the play
             </button>
+          </div>
 
-            <button
-              class="button ghost review-vote-button"
-              type="button"
-              data-review-id="${escapeHtml(review.id)}"
-              data-vote="keep_benched"
-            >
-              Keep benched
-            </button>
+          <div class="review-decision-panel" hidden>
+            <p class="muted small">
+              You have checked out this review. Cast your anonymous decision.
+            </p>
 
-            <button
-              class="button ghost review-vote-button"
-              type="button"
-              data-review-id="${escapeHtml(review.id)}"
-              data-vote="warn_user"
-            >
-              Warn user
-            </button>
+            <div class="review-actions">
+              <button
+                class="button secondary review-vote-button"
+                type="button"
+                data-review-id="${escapeHtml(review.id)}"
+                data-vote="unbench"
+              >
+                Wave it off
+              </button>
 
-            <button
-              class="button ghost review-vote-button danger"
-              type="button"
-              data-review-id="${escapeHtml(review.id)}"
-              data-vote="escalate_user"
-            >
-              Escalate user
-            </button>
+              <button
+                class="button ghost review-vote-button"
+                type="button"
+                data-review-id="${escapeHtml(review.id)}"
+                data-vote="keep_benched"
+              >
+                Keep benched
+              </button>
+            </div>
           </div>
         </article>
       `;
@@ -480,42 +677,87 @@ async function refreshPostsAndSituationRoom() {
 }
 
 function wireReviewControls() {
+  document.querySelectorAll(".review-checkout-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const reviewId = button.dataset.reviewId;
+      const reviewCard = button.closest(".review-card");
+
+      if (!reviewId || !reviewCard) return;
+
+      try {
+        button.disabled = true;
+        button.textContent = "Checking out...";
+
+        const checkout = await fetchJson(`/api/reviews/${encodeURIComponent(reviewId)}/checkout`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+
+        const panel = reviewCard.querySelector(".review-decision-panel");
+        const voteButtons = reviewCard.querySelectorAll(".review-vote-button");
+
+        voteButtons.forEach((voteButton) => {
+          voteButton.dataset.tokenId = checkout.token_id;
+        });
+
+        if (panel) {
+          panel.hidden = false;
+        }
+
+        button.textContent = "Checked out";
+      } catch (error) {
+        alert(`Could not check out review: ${error.message}`);
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent = "Review the play";
+      }
+    });
+  });
+
   document.querySelectorAll(".review-vote-button").forEach((button) => {
     if (button.dataset.wired) return;
     button.dataset.wired = "true";
 
     button.addEventListener("click", async () => {
       const reviewId = button.dataset.reviewId;
+      const tokenId = button.dataset.tokenId;
       const vote = button.dataset.vote;
       const reviewCard = button.closest(".review-card");
 
-      if (!reviewId || !vote) return;
+      if (!reviewId || !tokenId || !vote) {
+        alert("Review token missing. Check out the review again.");
+        return;
+      }
 
       try {
-        reviewCard?.querySelectorAll(".review-vote-button").forEach((reviewButton) => {
+        reviewCard?.querySelectorAll("button").forEach((reviewButton) => {
           reviewButton.disabled = true;
         });
 
-        button.textContent = "Reviewing...";
+        button.textContent = "Submitting...";
 
         const result = await fetchJson(`/api/reviews/${encodeURIComponent(reviewId)}/vote`, {
           method: "POST",
           body: JSON.stringify({
-            vote,
-            vote_reason: `Demo Situation Room vote: ${vote}`
+            token_id: tokenId,
+            vote
           })
         });
-
-        await refreshPostsAndSituationRoom();
 
         if (result.resolved) {
           console.log("Situation Room decision:", result.decision);
         }
+
+        await refreshPostsAndSituationRoom();
       } catch (error) {
         alert(`Could not cast review vote: ${error.message}`);
         console.error(error);
 
-        reviewCard?.querySelectorAll(".review-vote-button").forEach((reviewButton) => {
+        reviewCard?.querySelectorAll("button").forEach((reviewButton) => {
           reviewButton.disabled = false;
         });
       }
@@ -707,11 +949,10 @@ function wireForms() {
             tags
           })
         });
-
+        
         postForm.reset();
-
-        const postsData = await fetchJson("/api/posts");
-        renderPosts(postsData.posts || []);
+        
+        await loadHomepage();
 
         if (visibility !== "public") {
           alert("Post saved to D1. Because it is private/unlisted, it will not appear in the public feed yet.");
