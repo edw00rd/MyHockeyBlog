@@ -1043,3 +1043,53 @@ textarea:focus {
   opacity: 0.6;
   cursor: wait;
 }
+
+.identity-section {
+  padding-top: 1rem;
+}
+
+.identity-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 780px) {
+  .identity-grid {
+    grid-template-columns: minmax(260px, 0.75fr) minmax(320px, 1.25fr);
+  }
+}
+
+.identity-panel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.identity-panel h3 {
+  margin: 0;
+  letter-spacing: -0.035em;
+}
+
+.review-decision-panel {
+  margin-top: 0.9rem;
+  border: 1px solid rgba(255, 230, 0, 0.2);
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background: rgba(5, 11, 20, 0.42);
+}
+
+.box-banner.review-cleared {
+  border-color: rgba(0, 255, 200, 0.48);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 255, 200, 0.12),
+      rgba(5, 11, 20, 0.88)
+    );
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 200, 0.16) inset,
+    0 0 18px rgba(0, 255, 200, 0.08);
+}
+
+.box-banner.review-cleared strong {
+  color: var(--good);
+}
