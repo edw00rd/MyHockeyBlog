@@ -143,10 +143,13 @@ function renderUserControls() {
   }
 
   if (meta) {
+    const leadershipAccess = getCurrentLeadershipAccess();
+    
     const parts = [
       currentUser.username ? `@${currentUser.username}` : "",
       currentUser.position || "",
       currentUser.jersey_number ? `#${currentUser.jersey_number}` : "",
+      leadershipAccess.label ? `Access: ${leadershipAccess.label}` : "",
       currentUser.team_name || "",
       currentUser.skill_level || ""
     ].filter(Boolean);
@@ -287,6 +290,20 @@ function renderKarma(data) {
     "#karma-label",
     `Locker Room Karma: ${karma.karma_label || "Rookie"}`
   );
+}
+
+function getCurrentLeadershipAccess() {
+  return currentUser?.leadership_access || {
+    tier: "member",
+    label: "Member",
+    letter: null,
+    can_review_content: false,
+    can_review_accounts: false
+  };
+}
+
+function currentUserCanReviewContent() {
+  return Boolean(getCurrentLeadershipAccess().can_review_content);
 }
 
 function renderLeadership(data) {
@@ -574,6 +591,16 @@ function renderSituationRoom(reviews) {
   const container = $("#review-list");
   if (!container) return;
 
+  if (!currentUserCanReviewContent()) {
+    container.innerHTML = `
+      <div class="empty-state leadership-required">
+        <strong>Leadership review access required.</strong><br />
+        Only Captains and Alternate Captains can review Situation Room cases.
+      </div>
+    `;
+    return;
+  }
+  
   if (!reviews.length) {
     container.innerHTML = `
       <div class="empty-state">
