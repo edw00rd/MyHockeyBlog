@@ -139,18 +139,48 @@
                 Username
                 <input name="username" type="text" placeholder="captain-test-one" />
               </label>
-
+            
               <label>
                 Position
-                <input name="position" type="text" placeholder="Captain" />
+                <select name="position">
+                  <option value="Right Wing">Right Wing</option>
+                  <option value="Left Wing">Left Wing</option>
+                  <option value="Center">Center</option>
+                  <option value="Right Defenseman">Right Defenseman</option>
+                  <option value="Left Defenseman">Left Defenseman</option>
+                  <option value="Goalie">Goalie</option>
+                </select>
               </label>
             </div>
-
+            
             <div class="form-row">
               <label>
-                Jersey / badge
-                <input name="jersey_number" type="text" placeholder="C" />
+                Jersey number
+                <input
+                  name="jersey_number"
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  placeholder="11"
+                  required
+                />
               </label>
+            
+              <label>
+                Leadership role
+                <select name="leadership_role">
+                  <option value="none">None</option>
+                  <option value="alternate_captain">Alternate Captain</option>
+                  <option value="captain">Captain</option>
+                </select>
+              </label>
+            </div>
+            
+            <label>
+              Team name
+              <input name="team_name" type="text" placeholder="Situation Room Testers" />
+            </label>
 
               <label>
                 Team name
