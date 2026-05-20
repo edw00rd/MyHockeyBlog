@@ -215,8 +215,9 @@ function wireUserControls() {
 
       const displayName = String(data.get("display_name") || "").trim();
       const username = String(data.get("username") || "").trim();
-      const position = String(data.get("position") || "Skater").trim();
+      const position = String(data.get("position") || "Right Wing").trim();
       const jerseyNumber = String(data.get("jersey_number") || "").trim();
+      const leadershipRole = String(data.get("leadership_role") || "none").trim();
       const teamName = String(data.get("team_name") || "MyHockeyBlog Test Team").trim();
 
       if (!displayName) {
@@ -237,6 +238,7 @@ function wireUserControls() {
             username,
             position,
             jersey_number: jerseyNumber,
+            leadership_role: leadershipRole,
             team_name: teamName,
             skill_level: "Demo user"
           })
