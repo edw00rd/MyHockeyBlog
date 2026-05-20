@@ -229,19 +229,34 @@ async function getCurrentUser(request, env) {
 }
 
 function getLeadershipAccess(user = {}) {
-  const position = String(user.position || "").toLowerCase();
-  const jerseyNumber = String(user.jersey_number || "").trim().toUpperCase();
-  const role = String(user.role || "").toLowerCase();
+  const position = String(user.position || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  const jerseyNumber = String(user.jersey_number || "")
+    .trim()
+    .toUpperCase();
+
+  const role = String(user.role || "")
+    .toLowerCase()
+    .trim();
 
   const isAdmin = role === "admin" || role === "owner";
-  const isCaptain =
-    position.includes("captain") ||
-    jerseyNumber === "C";
 
   const isAlternateCaptain =
     position.includes("alternate") ||
     position.includes("assistant") ||
     jerseyNumber === "A";
+
+  const isCaptain =
+    !isAlternateCaptain &&
+    (
+      position === "captain" ||
+      position.startsWith("captain ") ||
+      position.endsWith(" captain") ||
+      jerseyNumber === "C"
+    );
 
   if (isAdmin || isCaptain) {
     return {
@@ -361,7 +376,17 @@ async function createUser(request, env) {
     const requestedUsername = String(body.username || displayName || "").trim();
     const username = slugifyUsername(requestedUsername);
     const position = String(body.position || "Skater").trim();
-    const jerseyNumber = String(body.jersey_number || "").trim();
+    
+    const requestedJerseyNumber = String(body.jersey_number || "").trim();
+    const normalizedPosition = position.toLowerCase();
+    
+    let jerseyNumber = requestedJerseyNumber;
+    
+    if (!jerseyNumber && normalizedPosition.includes("alternate")) {
+      jerseyNumber = "A";
+    } else if (!jerseyNumber && normalizedPosition.includes("captain")) {
+      jerseyNumber = "C";
+    }
     const teamName = String(body.team_name || "MyHockeyBlog Test Team").trim();
     const skillLevel = String(body.skill_level || "Demo user").trim();
 
