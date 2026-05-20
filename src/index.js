@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.19.0",
-        message: "User Identity v1 backend added.",
+        version: "0.20.0",
+        message: "Leadership Gate v1 added for Situation Room reviews.",
         timestamp: new Date().toISOString()
       });
     }
@@ -228,13 +228,71 @@ async function getCurrentUser(request, env) {
   return user;
 }
 
+function getLeadershipAccess(user = {}) {
+  const position = String(user.position || "").toLowerCase();
+  const jerseyNumber = String(user.jersey_number || "").trim().toUpperCase();
+  const role = String(user.role || "").toLowerCase();
+
+  const isAdmin = role === "admin" || role === "owner";
+  const isCaptain =
+    position.includes("captain") ||
+    jerseyNumber === "C";
+
+  const isAlternateCaptain =
+    position.includes("alternate") ||
+    position.includes("assistant") ||
+    jerseyNumber === "A";
+
+  if (isAdmin || isCaptain) {
+    return {
+      tier: "captain",
+      label: "Captain",
+      letter: "C",
+      can_review_content: true,
+      can_review_accounts: true
+    };
+  }
+
+  if (isAlternateCaptain) {
+    return {
+      tier: "alternate_captain",
+      label: "Alternate Captain",
+      letter: "A",
+      can_review_content: true,
+      can_review_accounts: false
+    };
+  }
+
+  return {
+    tier: "member",
+    label: "Member",
+    letter: null,
+    can_review_content: false,
+    can_review_accounts: false
+  };
+}
+
+function leadershipForbiddenResponse() {
+  return json(
+    {
+      ok: false,
+      error: "Leadership review access required.",
+      message: "Only Captains and Alternate Captains can review Situation Room cases."
+    },
+    403
+  );
+}
+
 async function getMe(request, env) {
   try {
     const user = await getCurrentUser(request, env);
 
     return json({
       ok: true,
-      user
+      user: {
+        ...user,
+        leadership_access: getLeadershipAccess(user)
+      }
     });
   } catch (error) {
     return json(
@@ -278,7 +336,10 @@ async function listUsers(env) {
 
     return json({
       ok: true,
-      users: result.results || []
+      users: (result.results || []).map((user) => ({
+        ...user,
+        leadership_access: getLeadershipAccess(user)
+      }))
     });
   } catch (error) {
     return json(
@@ -2484,10 +2545,20 @@ async function releaseExpiredReviewTokens(env, now) {
 
 async function getOpenReviews(request, env) {
   try {
-    const now = new Date().toISOString();
-
-    await releaseExpiredReviewTokens(env, now);
-    const currentUser = await getCurrentUser(request, env);
+      const now = new Date().toISOString();
+      
+      await releaseExpiredReviewTokens(env, now);
+      const currentUser = await getCurrentUser(request, env);
+      const leadershipAccess = getLeadershipAccess(currentUser);
+      
+      if (!leadershipAccess.can_review_content) {
+        return json({
+          ok: true,
+          reviews: [],
+          review_access: leadershipAccess,
+          message: "Leadership review access required."
+        });
+      }
     
     const result = await env.DB.prepare(
       `
@@ -2564,17 +2635,18 @@ async function getOpenReviews(request, env) {
       .bind(currentUser.user_id)
       .all();
 
-    return json({
-      ok: true,
-      reviews: (result.results || []).map((review) => ({
-        ...review,
-        reviews_needed: Number(review.required_votes || REVIEW_REQUIRED_VOTES),
-        reviews_completed: Number(review.total_votes || 0),
-        tokens_available: Number(review.tokens_available || 0),
-        tokens_checked_out: Number(review.tokens_checked_out || 0),
-        tokens_burned: Number(review.tokens_burned || 0)
-      }))
-    });
+      return json({
+        ok: true,
+        review_access: leadershipAccess,
+        reviews: (result.results || []).map((review) => ({
+          ...review,
+          reviews_needed: Number(review.required_votes || REVIEW_REQUIRED_VOTES),
+          reviews_completed: Number(review.total_votes || 0),
+          tokens_available: Number(review.tokens_available || 0),
+          tokens_checked_out: Number(review.tokens_checked_out || 0),
+          tokens_burned: Number(review.tokens_burned || 0)
+        }))
+      });
   } catch (error) {
     return json(
       {
@@ -2591,6 +2663,11 @@ async function checkoutReview(request, env, reviewId) {
   try {
     const now = new Date().toISOString();
     const currentUser = await getCurrentUser(request, env);
+    const leadershipAccess = getLeadershipAccess(currentUser);
+    
+    if (!leadershipAccess.can_review_content) {
+      return leadershipForbiddenResponse();
+    }
     
     await releaseExpiredReviewTokens(env, now);
 
