@@ -1093,3 +1093,13 @@ textarea:focus {
 .box-banner.review-cleared strong {
   color: var(--good);
 }
+
+.leadership-required {
+  border-color: rgba(255, 230, 0, 0.35);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 230, 0, 0.08),
+      rgba(5, 11, 20, 0.72)
+    );
+}
