@@ -210,6 +210,7 @@ async function getCurrentUser(request, env) {
       profiles.username,
       profiles.position,
       profiles.jersey_number,
+      profiles.leadership_role,
       profiles.team_name,
       profiles.skill_level
     FROM users
@@ -328,6 +329,7 @@ async function listUsers(env) {
         profiles.username,
         profiles.position,
         profiles.jersey_number,
+        profiles.leadership_role,
         profiles.team_name,
         profiles.skill_level,
         profiles.created_at
@@ -544,135 +546,6 @@ async function createUser(request, env) {
           team_name: teamName,
           skill_level: skillLevel,
           jersey_warnings: jerseyResult.warnings
-        }
-      },
-      201
-    );
-  } catch (error) {
-    return json(
-      {
-        ok: false,
-        message: "Failed to create user.",
-        error: error.message
-      },
-      500
-    );
-  }
-}
-
-    const existing = await env.DB.prepare(
-      `
-      SELECT user_id, username
-      FROM profiles
-      WHERE username = ?
-      LIMIT 1
-      `
-    )
-      .bind(username)
-      .first();
-
-    if (existing) {
-      return json(
-        {
-          ok: false,
-          error: "Username is already taken."
-        },
-        409
-      );
-    }
-
-    const now = new Date().toISOString();
-    const userId = `user_${crypto.randomUUID()}`;
-    const profileId = `profile_${crypto.randomUUID()}`;
-
-    await env.DB.prepare(
-      `
-      INSERT INTO users (
-        id,
-        email,
-        display_name,
-        auth_provider,
-        auth_provider_user_id,
-        role,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    )
-      .bind(
-        userId,
-        `${username}@example.com`,
-        displayName,
-        "demo",
-        `demo-${userId}`,
-        "user",
-        now,
-        now
-      )
-      .run();
-
-    await env.DB.prepare(
-      `
-      INSERT INTO profiles (
-        id,
-        user_id,
-        username,
-        display_name,
-        bio,
-        position,
-        shoots,
-        jersey_number,
-        team_name,
-        home_rink,
-        skill_level,
-        profile_visibility,
-        show_stats_publicly,
-        show_calendar_publicly,
-        allow_post_tagging,
-        allow_media_tagging,
-        require_tag_approval,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    )
-      .bind(
-        profileId,
-        userId,
-        username,
-        displayName,
-        "Demo user account for MyHockeyBlog testing.",
-        position,
-        null,
-        jerseyNumber || null,
-        teamName,
-        "Demo Ice Arena",
-        skillLevel,
-        "public",
-        1,
-        1,
-        1,
-        1,
-        1,
-        now,
-        now
-      )
-      .run();
-
-    return json(
-      {
-        ok: true,
-        user: {
-          user_id: userId,
-          profile_id: profileId,
-          username,
-          display_name: displayName,
-          position,
-          jersey_number: jerseyNumber,
-          team_name: teamName,
-          skill_level: skillLevel
         }
       },
       201
@@ -3041,7 +2914,12 @@ async function castReviewVote(request, env, reviewId) {
 
     const now = new Date().toISOString();
     const currentUser = await getCurrentUser(request, env);
-
+    const leadershipAccess = getLeadershipAccess(currentUser);
+    
+    if (!leadershipAccess.can_review_content) {
+      return leadershipForbiddenResponse();
+    }
+    
     await releaseExpiredReviewTokens(env, now);
 
     const review = await env.DB.prepare(
@@ -3668,8 +3546,8 @@ async function getProfileByUsername(env, username) {
         profiles.display_name,
         profiles.bio,
         profiles.position,
-        profiles.shoots,
         profiles.jersey_number,
+        profiles.leadership_role,
         profiles.team_name,
         profiles.home_rink,
         profiles.skill_level,
@@ -4011,17 +3889,18 @@ function normalizeJerseyNumber(value) {
   const raw = String(value || "").trim();
 
   if (!/^\d+$/.test(raw)) {
-    throw new Error("Jersey number must be a whole number from 1 to 99.");
+    return {
+      ok: false,
+      error: "Jersey number must be a whole number from 1 to 99."
+    };
   }
 
-  const number = Number(raw);
-
-  if (!Number.isInteger(number) || number < 1 || number > 99) {
-    throw new Error("Jersey number must be a whole number from 1 to 99.");
+  if (/^0\d+/.test(raw)) {
+    return {
+      ok: false,
+      error: "Jersey number cannot use leading zeroes. Use 1-99 only."
+    };
   }
-
-  return String(number);
-}
 
   const number = Number(raw);
 
