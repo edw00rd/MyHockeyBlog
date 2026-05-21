@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.20.0",
-        message: "Leadership Gate v1 added for Situation Room reviews.",
+        version: "0.20.1",
+        message: "Fix ensureDemoAuthor function.",
         timestamp: new Date().toISOString()
       });
     }
@@ -3688,6 +3688,7 @@ async function ensureDemoAuthor(env, now) {
       position,
       shoots,
       jersey_number,
+      leadership_role,
       team_name,
       home_rink,
       skill_level,
@@ -3700,7 +3701,7 @@ async function ensureDemoAuthor(env, now) {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   )
     .bind(
@@ -3709,9 +3710,10 @@ async function ensureDemoAuthor(env, now) {
       DEMO_USERNAME,
       "Demo Skater",
       "Adult hockey player tracking progress, ice sessions, games, photos, videos, and skill development.",
-      "Wing",
+      "Right Wing",
       "right",
-      "00",
+      "11",
+      "none",
       "MyHockeyBlog Demo Team",
       "Demo Ice Arena",
       "Beginner / beer league",
