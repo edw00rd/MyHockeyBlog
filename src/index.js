@@ -28,8 +28,8 @@ export default {
     if (url.pathname === "/api/version") {
       return json({
         ok: true,
-        version: "0.20.1",
-        message: "Fix ensureDemoAuthor function.",
+        version: "0.21.0",
+        message: "Threaded Comments v1 added.",
         timestamp: new Date().toISOString()
       });
     }
@@ -1047,6 +1047,7 @@ async function createComment(request, env, postId) {
   try {
     const body = await readJsonBody(request);
     const commentBody = String(body.body || "").trim();
+    const parentCommentId = String(body.parent_comment_id || "").trim() || null;
 
     if (!commentBody) {
       return json(
@@ -1101,6 +1102,53 @@ async function createComment(request, env, postId) {
       );
     }
 
+    if (parentCommentId) {
+      const parentComment = await env.DB.prepare(
+        `
+        SELECT
+          id,
+          post_id,
+          status,
+          COALESCE(moderation_status, 'visible') AS moderation_status
+        FROM comments
+        WHERE id = ?
+        LIMIT 1
+        `
+      )
+        .bind(parentCommentId)
+        .first();
+
+      if (!parentComment || parentComment.post_id !== postId) {
+        return json(
+          {
+            ok: false,
+            error: "Parent comment not found for this post."
+          },
+          400
+        );
+      }
+
+      if (parentComment.status !== "visible") {
+        return json(
+          {
+            ok: false,
+            error: "Cannot reply to a hidden comment."
+          },
+          403
+        );
+      }
+
+      if (parentComment.moderation_status !== "visible") {
+        return json(
+          {
+            ok: false,
+            error: "Cannot reply to a comment that is under review or benched."
+          },
+          403
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const currentUser = await getCurrentUser(request, env);
 
@@ -1126,7 +1174,7 @@ async function createComment(request, env, postId) {
         commentId,
         postId,
         currentUser.user_id,
-        null,
+        parentCommentId,
         commentBody,
         0,
         "visible",
@@ -1138,11 +1186,12 @@ async function createComment(request, env, postId) {
     return json(
       {
         ok: true,
-        message: "Comment created successfully.",
+        message: parentCommentId ? "Reply created successfully." : "Comment created successfully.",
         comment: {
           id: commentId,
           post_id: postId,
           author_user_id: currentUser.user_id,
+          parent_comment_id: parentCommentId,
           body: commentBody,
           score: 0,
           status: "visible",
@@ -1162,7 +1211,6 @@ async function createComment(request, env, postId) {
     );
   }
 }
-
 async function voteOnComment(request, env, commentId) {
   try {
     const body = await readJsonBody(request);
