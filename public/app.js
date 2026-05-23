@@ -1402,7 +1402,39 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   `;
 }
 
+function wireCommentCollapseControls() {
+  document.querySelectorAll(".comment-collapse-toggle").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
 
+    button.addEventListener("click", () => {
+      const commentId = button.dataset.commentId;
+      const node = document.querySelector(
+        `.comment-node[data-comment-node-id="${CSS.escape(commentId)}"]`
+      );
+
+      if (!node) return;
+
+      const body = node.querySelector(":scope > .comment-card > .boxed-content");
+      const replies = node.querySelector(":scope > .comment-replies");
+
+      const isExpanded = button.getAttribute("aria-expanded") !== "false";
+      const nextExpanded = !isExpanded;
+
+      if (body) {
+        body.hidden = !nextExpanded;
+      }
+
+      if (replies) {
+        replies.hidden = !nextExpanded;
+      }
+
+      button.setAttribute("aria-expanded", String(nextExpanded));
+      button.textContent = nextExpanded ? "Collapse" : "Expand";
+      node.classList.toggle("comment-collapsed", !nextExpanded);
+    });
+  });
+}
 
 function wireReplyControls() {
   document.querySelectorAll(".comment-reply-toggle").forEach((button) => {
