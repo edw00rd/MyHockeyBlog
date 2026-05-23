@@ -1383,13 +1383,15 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
           class="boxed-content"
           ${commentIsBoxed ? "hidden" : ""}
         >
-          <p>${escapeHtml(comment.body)}</p>
+          <div class="comment-body-block ${rentARefComment ? "comment-body-ref" : ""}">
+            <p>${escapeHtml(comment.body)}</p>
+          </div>
 
           ${commentVoteControlsHtml}
 
           ${commentChirpControlsHtml}
 
-          <p class="muted small">
+          <p class="comment-author-line muted small">
             ${escapeHtml(author)} • ${formatDate(comment.created_at)}
           </p>
 
