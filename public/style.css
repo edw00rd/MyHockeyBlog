@@ -1164,3 +1164,21 @@ textarea:focus {
     padding-left: 0.55rem;
   }
 }
+
+.comment-card.rent-a-ref-comment,
+.comment-depth-1 > .comment-card.rent-a-ref-comment,
+.comment-depth-2 > .comment-card.rent-a-ref-comment,
+.comment-depth-3 > .comment-card.rent-a-ref-comment,
+.comment-depth-4 > .comment-card.rent-a-ref-comment,
+.comment-depth-max > .comment-card.rent-a-ref-comment {
+  position: relative;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.18) 0 9px,
+      rgba(0, 0, 0, 0.42) 9px 18px
+    ),
+    rgba(8, 19, 35, 0.78);
+  background-blend-mode: soft-light;
+}
