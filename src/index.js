@@ -1108,8 +1108,10 @@ async function createComment(request, env, postId) {
         SELECT
           id,
           post_id,
+          author_user_id,
           status,
-          COALESCE(moderation_status, 'visible') AS moderation_status
+          COALESCE(moderation_status, 'visible') AS moderation_status,
+          COALESCE(moderation_reason, '') AS moderation_reason
         FROM comments
         WHERE id = ?
         LIMIT 1
