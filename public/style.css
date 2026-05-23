@@ -1182,3 +1182,32 @@ textarea:focus {
     rgba(8, 19, 35, 0.78);
   background-blend-mode: soft-light;
 }
+
+.comment-card-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.45rem;
+}
+
+.comment-collapse-toggle {
+  font-size: 0.76rem;
+  padding: 0.28rem 0.55rem;
+  opacity: 0.78;
+}
+
+.comment-collapse-toggle:hover {
+  opacity: 1;
+}
+
+.comment-node.comment-collapsed > .comment-card {
+  opacity: 0.82;
+}
+
+.comment-node.comment-collapsed > .comment-card::after {
+  content: "Thread collapsed";
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
