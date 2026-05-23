@@ -1180,7 +1180,8 @@ function renderComments(postId, comments, commentsEnabled = true) {
   wireChirpControls();
   wireRentARefCommentControls();
   wireReplyControls();
-
+  wireCommentCollapseControls();
+  
   if (typeof wireModerationControls === "function") {
     wireModerationControls();
   }
@@ -1360,12 +1361,22 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     : "";
 
   return `
-    <div class="comment-node ${depthClass}">
+    <div class="comment-node ${depthClass}" data-comment-node-id="${escapeHtml(comment.id)}">
       <div
         class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
         data-comment-id="${escapeHtml(comment.id)}"
       >
-        ${moderationBannerHtml}
+        <div class="comment-card-toolbar">
+          <button
+            class="inline-button comment-collapse-toggle"
+            type="button"
+            data-comment-id="${escapeHtml(comment.id)}"
+            aria-expanded="true"
+          >
+            Collapse
+          </button>
+        </div>
+          ${moderationBannerHtml}
 
         <div
           id="comment-boxed-${escapeHtml(comment.id)}"
@@ -1390,6 +1401,8 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     </div>
   `;
 }
+
+
 
 function wireReplyControls() {
   document.querySelectorAll(".comment-reply-toggle").forEach((button) => {
