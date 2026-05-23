@@ -1211,3 +1211,62 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 850;
 }
+
+.comment-body-block {
+  position: relative;
+  border-left: 4px solid var(--accent);
+  border-radius: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 200, 255, 0.12),
+      rgba(5, 11, 20, 0.72)
+    );
+  color: var(--text);
+  box-shadow:
+    0 0 0 1px rgba(0, 200, 255, 0.12) inset,
+    0 0 16px rgba(0, 200, 255, 0.06);
+}
+
+.comment-body-block p {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.comment-body-ref {
+  border-left-color: rgba(255, 255, 255, 0.85);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.16),
+      rgba(5, 11, 20, 0.78)
+    );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+    0 0 18px rgba(255, 255, 255, 0.06);
+}
+
+.comment-body-ref p {
+  font-weight: 900;
+  letter-spacing: -0.015em;
+}
+
+.comment-author-line {
+  margin: 0.7rem 0 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(159, 177, 200, 0.12);
+}
+
+.comment-card .chirp-profile {
+  margin-top: 0.75rem;
+  opacity: 0.92;
+}
+
+.comment-card .post-meta {
+  margin-top: 0.7rem;
+}
