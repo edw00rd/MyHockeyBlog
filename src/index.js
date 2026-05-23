@@ -2254,6 +2254,7 @@ async function ensureRentARefAuthor(env, now) {
       position,
       shoots,
       jersey_number,
+      leadership_role,
       team_name,
       home_rink,
       skill_level,
@@ -2266,7 +2267,7 @@ async function ensureRentARefAuthor(env, now) {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   )
     .bind(
@@ -2275,9 +2276,10 @@ async function ensureRentARefAuthor(env, now) {
       RENT_A_REF_USERNAME,
       "Rent-a-Ref",
       "Cheap whistle. Expensive opinions.",
-      "Ref",
+      "Official",
       null,
-      "2",
+      null,
+      "none",
       "Beer League Officiating",
       "Late Game Rink",
       "Questionable",
