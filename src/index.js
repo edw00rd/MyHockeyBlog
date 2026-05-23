@@ -1149,6 +1149,19 @@ async function createComment(request, env, postId) {
           403
         );
       }
+      
+      if (
+        parentComment.author_user_id === RENT_A_REF_USER_ID ||
+        String(parentComment.moderation_reason || "").startsWith("rent_a_ref_")
+      ) {
+        return json(
+          {
+            ok: false,
+            error: "Rent-a-Ref calls cannot be replied to."
+          },
+          403
+        );
+      }
     }
 
     const now = new Date().toISOString();
