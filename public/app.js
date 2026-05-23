@@ -1052,7 +1052,7 @@ function wireCommentControls() {
 
       try {
         const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
-        renderComments(postId, data.comments || []);
+        renderComments(postId, data.comments || [], data.comments_enabled);
       } catch (error) {
         list.innerHTML = `<div class="empty-state">Could not load comments: ${escapeHtml(error.message)}</div>`;
       }
@@ -1090,7 +1090,7 @@ function wireCommentControls() {
         input.value = "";
 
         const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
-        renderComments(postId, data.comments || []);
+        renderComments(postId, data.comments || [], data.comments_enabled);
 
         const postsData = await fetchJson("/api/posts");
         renderPosts(postsData.posts || []);
@@ -1124,7 +1124,39 @@ function getRentARefCommentClass(comment) {
   return "rent-a-ref-call-green";
 }
 
-function renderComments(postId, comments) {
+function buildCommentTree(comments = []) {
+  const byId = new Map();
+  const roots = [];
+
+  comments.forEach((comment) => {
+    byId.set(comment.id, {
+      ...comment,
+      replies: []
+    });
+  });
+
+  byId.forEach((comment) => {
+    const parentId = String(comment.parent_comment_id || "");
+
+    if (parentId && byId.has(parentId)) {
+      byId.get(parentId).replies.push(comment);
+    } else {
+      roots.push(comment);
+    }
+  });
+
+  return roots;
+}
+
+function updateCommentToggleCount(postId, comments = []) {
+  const toggle = document.querySelector(`.comment-toggle[data-post-id="${CSS.escape(postId)}"]`);
+
+  if (toggle) {
+    toggle.textContent = `Comments (${comments.length})`;
+  }
+}
+
+function renderComments(postId, comments, commentsEnabled = true) {
   const list = document.querySelector(`#comments-${CSS.escape(postId)}`);
   if (!list) return;
 
@@ -1133,118 +1165,20 @@ function renderComments(postId, comments) {
     return;
   }
 
-  list.innerHTML = comments
-    .map((comment) => {
-      const author = comment.author_display_name || comment.author_username || "Demo Skater";
-      const userVote = Number(comment.user_vote || 0);
-      const chirpCount = Number(comment.chirp_count || 0);
-      const userChirped = Number(comment.user_chirped || 0) === 1;
-      const chirpLabel = getChirpProfileLabel(comment);
-      const chirpProfileHtml = renderChirpProfile(comment);
+  const commentTree = buildCommentTree(comments);
 
-      const rentARefComment = isRentARefComment(comment);
-      const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
-      const rentARefReadyForComment = isRentARefReadyForComment(comment);
-
-      const moderationStatus = String(comment.moderation_status || "visible");
-      const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
-      const moderationBannerHtml = !rentARefComment
-        ? renderModerationBanner(comment, "comment")
-        : "";
-
-      const commentVoteControlsHtml = rentARefComment
-        ? ""
-        : `
-          <div class="comment-actions">
-            <button
-              class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
-              type="button"
-              data-comment-id="${escapeHtml(comment.id)}"
-              data-vote-value="1"
-              aria-label="Upvote comment"
-            >
-              ▲
-            </button>
-
-            <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
-              ${Number(comment.score || 0)}
-            </strong>
-
-            <button
-              class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
-              type="button"
-              data-comment-id="${escapeHtml(comment.id)}"
-              data-vote-value="-1"
-              aria-label="Downvote comment"
-            >
-              ▼
-            </button>
-          </div>
-        `;
-
-      const commentChirpControlsHtml = rentARefComment
-        ? ""
-        : `
-          <div class="post-meta">
-            <button
-              class="button ghost chirp-button ${userChirped ? "active" : ""}"
-              type="button"
-              data-content-type="comment"
-              data-content-id="${escapeHtml(comment.id)}"
-            >
-              ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
-            </button>
-
-            <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
-              ${escapeHtml(chirpLabel)}
-            </span>
-
-            <button
-              class="button ghost rent-a-ref-button ${rentARefReadyForComment ? "" : "disabled"}"
-              type="button"
-              data-comment-id="${escapeHtml(comment.id)}"
-              ${rentARefReadyForComment ? "" : "disabled"}
-              title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
-            >
-              Rent-a-Ref
-            </button>
-          </div>
-
-          <div class="chirp-profile-wrap">
-            ${chirpProfileHtml}
-          </div>
-        `;
-
-      return `
-        <div
-          class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
-          data-comment-id="${escapeHtml(comment.id)}"
-        >
-          ${moderationBannerHtml}
-
-          <div
-            id="comment-boxed-${escapeHtml(comment.id)}"
-            class="boxed-content"
-            ${commentIsBoxed ? "hidden" : ""}
-          >
-            <p>${escapeHtml(comment.body)}</p>
-
-            ${commentVoteControlsHtml}
-
-            ${commentChirpControlsHtml}
-
-            <p class="muted small">
-              ${escapeHtml(author)} • ${formatDate(comment.created_at)}
-            </p>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
+  list.innerHTML = `
+    <div class="comment-tree">
+      ${commentTree
+        .map((comment) => renderCommentNode(postId, comment, 0, commentsEnabled))
+        .join("")}
+    </div>
+  `;
 
   wireCommentVoteControls();
   wireChirpControls();
   wireRentARefCommentControls();
+  wireReplyControls();
 
   if (typeof wireModerationControls === "function") {
     wireModerationControls();
@@ -1298,6 +1232,231 @@ function wireCommentVoteControls() {
         console.error(error);
       } finally {
         button.disabled = false;
+      }
+    });
+  });
+}
+
+function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
+  const author = comment.author_display_name || comment.author_username || "Demo Skater";
+  const userVote = Number(comment.user_vote || 0);
+  const chirpCount = Number(comment.chirp_count || 0);
+  const userChirped = Number(comment.user_chirped || 0) === 1;
+  const chirpLabel = getChirpProfileLabel(comment);
+  const chirpProfileHtml = renderChirpProfile(comment);
+
+  const rentARefComment = isRentARefComment(comment);
+  const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
+  const rentARefReadyForComment = isRentARefReadyForComment(comment);
+
+  const moderationStatus = String(comment.moderation_status || "visible");
+  const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
+  const moderationBannerHtml = !rentARefComment
+    ? renderModerationBanner(comment, "comment")
+    : "";
+
+  const depthClass = depth >= 5 ? "comment-depth-max" : `comment-depth-${depth}`;
+
+  const commentVoteControlsHtml = rentARefComment
+    ? ""
+    : `
+      <div class="comment-actions">
+        <button
+          class="button ghost comment-vote ${userVote === 1 ? "active" : ""}"
+          type="button"
+          data-comment-id="${escapeHtml(comment.id)}"
+          data-vote-value="1"
+          aria-label="Upvote comment"
+        >
+          ▲
+        </button>
+
+        <strong class="comment-score" id="comment-score-${escapeHtml(comment.id)}">
+          ${Number(comment.score || 0)}
+        </strong>
+
+        <button
+          class="button ghost comment-vote ${userVote === -1 ? "active" : ""}"
+          type="button"
+          data-comment-id="${escapeHtml(comment.id)}"
+          data-vote-value="-1"
+          aria-label="Downvote comment"
+        >
+          ▼
+        </button>
+      </div>
+    `;
+
+  const commentChirpControlsHtml = rentARefComment
+    ? ""
+    : `
+      <div class="post-meta">
+        <button
+          class="button ghost chirp-button ${userChirped ? "active" : ""}"
+          type="button"
+          data-content-type="comment"
+          data-content-id="${escapeHtml(comment.id)}"
+        >
+          ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
+        </button>
+
+        <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
+          ${escapeHtml(chirpLabel)}
+        </span>
+
+        <button
+          class="button ghost rent-a-ref-button ${rentARefReadyForComment ? "" : "disabled"}"
+          type="button"
+          data-comment-id="${escapeHtml(comment.id)}"
+          ${rentARefReadyForComment ? "" : "disabled"}
+          title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
+        >
+          Rent-a-Ref
+        </button>
+      </div>
+
+      <div class="chirp-profile-wrap">
+        ${chirpProfileHtml}
+      </div>
+    `;
+
+  const replyControlsHtml = commentsEnabled && !commentIsBoxed
+    ? `
+      <div class="reply-controls">
+        <button
+          class="inline-button comment-reply-toggle"
+          type="button"
+          data-post-id="${escapeHtml(postId)}"
+          data-parent-comment-id="${escapeHtml(comment.id)}"
+        >
+          Reply
+        </button>
+
+        <form
+          class="reply-form"
+          data-post-id="${escapeHtml(postId)}"
+          data-parent-comment-id="${escapeHtml(comment.id)}"
+          hidden
+        >
+          <label>
+            Reply
+            <input name="reply" type="text" placeholder="Reply to this comment..." required />
+          </label>
+          <button class="button secondary" type="submit">Post reply</button>
+        </form>
+      </div>
+    `
+    : "";
+
+  const repliesHtml = comment.replies?.length
+    ? `
+      <div class="comment-replies">
+        ${comment.replies
+          .map((reply) => renderCommentNode(postId, reply, depth + 1, commentsEnabled))
+          .join("")}
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="comment-node ${depthClass}">
+      <div
+        class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
+        data-comment-id="${escapeHtml(comment.id)}"
+      >
+        ${moderationBannerHtml}
+
+        <div
+          id="comment-boxed-${escapeHtml(comment.id)}"
+          class="boxed-content"
+          ${commentIsBoxed ? "hidden" : ""}
+        >
+          <p>${escapeHtml(comment.body)}</p>
+
+          ${commentVoteControlsHtml}
+
+          ${commentChirpControlsHtml}
+
+          <p class="muted small">
+            ${escapeHtml(author)} • ${formatDate(comment.created_at)}
+          </p>
+
+          ${replyControlsHtml}
+        </div>
+      </div>
+
+      ${repliesHtml}
+    </div>
+  `;
+}
+
+function wireReplyControls() {
+  document.querySelectorAll(".comment-reply-toggle").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", () => {
+      const parentCommentId = button.dataset.parentCommentId;
+      const form = document.querySelector(
+        `.reply-form[data-parent-comment-id="${CSS.escape(parentCommentId)}"]`
+      );
+
+      if (!form) return;
+
+      const shouldOpen = form.hidden;
+      form.hidden = !shouldOpen;
+      button.textContent = shouldOpen ? "Cancel reply" : "Reply";
+
+      if (shouldOpen) {
+        form.querySelector("input[name='reply']")?.focus();
+      }
+    });
+  });
+
+  document.querySelectorAll(".reply-form").forEach((form) => {
+    if (form.dataset.wired) return;
+    form.dataset.wired = "true";
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const postId = form.dataset.postId;
+      const parentCommentId = form.dataset.parentCommentId;
+      const input = form.querySelector("input[name='reply']");
+      const button = form.querySelector("button[type='submit']");
+      const body = String(input?.value || "").trim();
+
+      if (!postId || !parentCommentId || !body) {
+        alert("Please enter a reply.");
+        return;
+      }
+
+      try {
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Posting...";
+        }
+
+        await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+          method: "POST",
+          body: JSON.stringify({
+            body,
+            parent_comment_id: parentCommentId
+          })
+        });
+
+        input.value = "";
+
+        const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
+        renderComments(postId, data.comments || [], data.comments_enabled);
+        updateCommentToggleCount(postId, data.comments || []);
+      } catch (error) {
+        alert(`Could not save reply: ${error.message}`);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Post reply";
+        }
       }
     });
   });
@@ -1650,7 +1809,7 @@ function wireRentARefCommentControls() {
         }
 
         const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
-        renderComments(postId, data.comments || []);
+        renderComments(postId, data.comments || [], data.comments_enabled);
         
         await refreshSituationRoom();
       } catch (error) {
@@ -1708,7 +1867,7 @@ function wireRentARefControls() {
           }
 
           const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
-          renderComments(postId, data.comments || []);
+          renderComments(postId, data.comments || [], data.comments_enabled);
         }
 
         await refreshSituationRoom();
