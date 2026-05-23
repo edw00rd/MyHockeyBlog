@@ -1105,10 +1105,13 @@ function wireCommentControls() {
 }
 
 function isRentARefComment(comment) {
+  const moderationReason = String(comment.moderation_reason || "");
+
   return (
     comment.author_user_id === RENT_A_REF_USER_ID ||
     comment.author_username === RENT_A_REF_USERNAME ||
-    comment.author_display_name === "Rent-a-Ref"
+    comment.author_display_name === "Rent-a-Ref" ||
+    moderationReason.startsWith("rent_a_ref_")
   );
 }
 
@@ -1318,7 +1321,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
       </div>
     `;
 
-  const replyControlsHtml = commentsEnabled && !commentIsBoxed
+  const replyControlsHtml = commentsEnabled && !commentIsBoxed && !rentARefComment
     ? `
       <div class="reply-controls">
         <button
