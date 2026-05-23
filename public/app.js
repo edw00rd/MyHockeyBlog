@@ -1091,9 +1091,7 @@ function wireCommentControls() {
 
         const data = await fetchJson(`/api/posts/${encodeURIComponent(postId)}/comments`);
         renderComments(postId, data.comments || [], data.comments_enabled);
-
-        const postsData = await fetchJson("/api/posts");
-        renderPosts(postsData.posts || []);
+        updateCommentToggleCount(postId, data.comments || []);
       } catch (error) {
         alert(`Could not save comment: ${error.message}`);
       } finally {
