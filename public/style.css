@@ -1103,3 +1103,64 @@ textarea:focus {
       rgba(5, 11, 20, 0.72)
     );
 }
+
+.comment-tree {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.comment-node {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.comment-replies {
+  display: grid;
+  gap: 0.75rem;
+  margin-left: 1rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.comment-depth-0 > .comment-card {
+  margin-left: 0;
+}
+
+.comment-depth-1 > .comment-card,
+.comment-depth-2 > .comment-card,
+.comment-depth-3 > .comment-card,
+.comment-depth-4 > .comment-card,
+.comment-depth-max > .comment-card {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(5, 11, 20, 0.48)
+    );
+}
+
+.reply-controls {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.65rem;
+}
+
+.reply-form {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-radius: 0.85rem;
+  background: rgba(5, 11, 20, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reply-form[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .comment-replies {
+    margin-left: 0.45rem;
+    padding-left: 0.55rem;
+  }
+}
