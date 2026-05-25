@@ -1381,6 +1381,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
         <div
           id="comment-boxed-${escapeHtml(comment.id)}"
           class="boxed-content"
+          data-moderation-locked="${commentIsBoxed ? "true" : "false"}"
           ${commentIsBoxed ? "hidden" : ""}
         >
           <div class="comment-body-block ${rentARefComment ? "comment-body-ref" : ""}">
@@ -1424,7 +1425,13 @@ function wireCommentCollapseControls() {
       const nextExpanded = !isExpanded;
 
       if (body) {
-        body.hidden = !nextExpanded;
+        const moderationLocked = body.dataset.moderationLocked === "true";
+      
+        if (moderationLocked) {
+          body.hidden = true;
+        } else {
+          body.hidden = !nextExpanded;
+        }
       }
 
       if (replies) {
