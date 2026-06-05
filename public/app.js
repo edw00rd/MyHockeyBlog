@@ -1239,6 +1239,14 @@ function wireCommentVoteControls() {
   });
 }
 
+function countCommentReplies(comment) {
+  if (!comment?.replies?.length) return 0;
+
+  return comment.replies.reduce((total, reply) => {
+    return total + 1 + countCommentReplies(reply);
+  }, 0);
+}
+
 function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const author = comment.author_display_name || comment.author_username || "Demo Skater";
   const userVote = Number(comment.user_vote || 0);
@@ -1360,8 +1368,17 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     `
     : "";
 
+  const replyCount = countCommentReplies(comment);
+  const commentPreview = String(comment.body || "").slice(0, 90);
+  
   return `
-    <div class="comment-node ${depthClass}" data-comment-node-id="${escapeHtml(comment.id)}">
+    <div
+      class="comment-node ${depthClass}"
+      data-comment-node-id="${escapeHtml(comment.id)}"
+      data-comment-author="${escapeHtml(author)}"
+      data-comment-preview="${escapeHtml(commentPreview)}"
+      data-comment-reply-count="${replyCount}"
+    >
       <div
         class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
         data-comment-id="${escapeHtml(comment.id)}"
