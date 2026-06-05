@@ -1270,3 +1270,7 @@ textarea:focus {
 .comment-card .post-meta {
   margin-top: 0.7rem;
 }
+
+.comment-replies[hidden] {
+  display: none !important;
+}
