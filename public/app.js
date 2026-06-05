@@ -1369,7 +1369,10 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     : "";
 
   const replyCount = countCommentReplies(comment);
-  const commentPreview = String(comment.body || "").slice(0, 90);
+  const commentPreview = String(comment.body || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 90);
   
   return `
     <div
