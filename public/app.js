@@ -86,11 +86,12 @@ async function loadHomepage() {
 
     const username = getCurrentUsername();
 
-    const [profileData, postsData, karmaData, reviewsData] = await Promise.all([
+    const [profileData, postsData, karmaData, reviewsData, vibeData] = await Promise.all([
       fetchJson(`/api/profile/${encodeURIComponent(username)}`),
       fetchJson("/api/posts"),
       fetchJson(`/api/profile/${encodeURIComponent(username)}/karma`),
-      fetchJson("/api/reviews")
+      fetchJson("/api/reviews"),
+      fetchJson(`/api/profile/${encodeURIComponent(username)}/community-vibe`)
     ]);
 
     renderUserControls();
@@ -98,6 +99,7 @@ async function loadHomepage() {
     renderKarma(karmaData);
     renderLeadership(karmaData);
     renderProfileChirpTone(karmaData);
+    renderCommunityVibe(vibeData);
     renderPosts(postsData.posts || []);
     renderSituationRoom(reviewsData.reviews || []);
     renderEventsPlaceholder();
@@ -307,6 +309,93 @@ function getCurrentLeadershipAccess() {
     can_review_content: false,
     can_review_accounts: false
   };
+}
+
+function renderCommunityVibe(data) {
+  const container = $("#community-vibe");
+  if (!container) return;
+
+  const vibe = data?.community_vibe || {};
+  const issued = vibe.issued || {};
+  const issuedVotes = issued.votes || {};
+  const issuedChirps = issued.chirps || {};
+
+  const label = vibe.label || "Still Warming Up";
+  const rawClassName = vibe.class_name || "vibe-warming-up";
+  const className = String(rawClassName).replace(/[^a-z0-9_-]/gi, "");
+  const summary = vibe.summary || "Not enough voting or chirping history yet.";
+
+  const totalActions = Number(issued.total_actions || 0);
+
+  const upvotes = Number(issuedVotes.upvotes || 0);
+  const downvotes = Number(issuedVotes.downvotes || 0);
+  const upvoteRate = Number(issuedVotes.upvote_rate || 0);
+  const downvoteRate = Number(issuedVotes.downvote_rate || 0);
+
+  const chirpsTotal = Number(issuedChirps.total || 0);
+  const positiveRate = Number(issuedChirps.positive_rate || 0);
+  const negativeRate = Number(issuedChirps.negative_rate || 0);
+  const spicyScore = Number(issuedChirps.spicy_score || 0);
+
+  container.className = `community-vibe ${className}`;
+
+  container.innerHTML = `
+    <div class="community-vibe-header">
+      <span class="badge vibe-badge">Community Vibe</span>
+      <strong>${escapeHtml(label)}</strong>
+    </div>
+
+    <p class="muted small">${escapeHtml(summary)}</p>
+
+    <div class="community-vibe-stats">
+      <div>
+        <strong>${totalActions}</strong>
+        <span>actions issued</span>
+      </div>
+
+      <div>
+        <strong>${upvotes}</strong>
+        <span>upvotes</span>
+      </div>
+
+      <div>
+        <strong>${downvotes}</strong>
+        <span>downvotes</span>
+      </div>
+
+      <div>
+        <strong>${chirpsTotal}</strong>
+        <span>chirps</span>
+      </div>
+    </div>
+
+    <div class="community-vibe-meter">
+      <div class="community-vibe-meter-row">
+        <span>Upvote rate</span>
+        <strong>${upvoteRate}%</strong>
+      </div>
+
+      <div class="community-vibe-meter-row">
+        <span>Downvote rate</span>
+        <strong>${downvoteRate}%</strong>
+      </div>
+
+      <div class="community-vibe-meter-row">
+        <span>Positive chirp rate</span>
+        <strong>${positiveRate}%</strong>
+      </div>
+
+      <div class="community-vibe-meter-row">
+        <span>Negative chirp rate</span>
+        <strong>${negativeRate}%</strong>
+      </div>
+
+      <div class="community-vibe-meter-row">
+        <span>Spicy heat score</span>
+        <strong>${spicyScore}</strong>
+      </div>
+    </div>
+  `;
 }
 
 function currentUserCanReviewContent() {
