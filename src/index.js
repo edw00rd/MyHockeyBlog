@@ -122,6 +122,24 @@ export default {
     
       return getProfileKarma(env, username);
     }
+
+    const communityVibeMatch = url.pathname.match(/^\/api\/profile\/([^/]+)\/community-vibe$/);
+    
+    if (communityVibeMatch && method === "GET") {
+      const username = decodeURIComponent(communityVibeMatch[1]);
+    
+      if (!username) {
+        return json(
+          {
+            ok: false,
+            error: "Missing username"
+          },
+          400
+        );
+      }
+    
+      return getProfileCommunityVibe(env, username);
+    }
     
     if (url.pathname.startsWith("/api/profile/") && method === "GET") {
       const username = decodeURIComponent(
@@ -3294,6 +3312,238 @@ async function applyReviewDecision(env, review, decision, now) {
       )
       .run();
   }
+}
+
+async function getProfileCommunityVibe(env, username) {
+  try {
+    const now = new Date().toISOString();
+
+    if (username === DEMO_USERNAME && typeof ensureDemoAuthor === "function") {
+      await ensureDemoAuthor(env, now);
+    }
+
+    const profile = await env.DB.prepare(
+      `
+      SELECT
+        profiles.user_id,
+        profiles.username,
+        COALESCE(profiles.display_name, users.display_name, profiles.username) AS display_name
+      FROM profiles
+      JOIN users ON users.id = profiles.user_id
+      WHERE profiles.username = ?
+        AND profiles.profile_visibility = 'public'
+      LIMIT 1
+      `
+    )
+      .bind(username)
+      .first();
+
+    if (!profile) {
+      return json(
+        {
+          ok: false,
+          error: "Profile not found."
+        },
+        404
+      );
+    }
+
+    const userId = profile.user_id;
+
+    const votesIssued = await env.DB.prepare(
+      `
+      SELECT
+        COUNT(*) AS total_votes_issued,
+        COALESCE(SUM(CASE WHEN vote_value = 1 THEN 1 ELSE 0 END), 0) AS upvotes_issued,
+        COALESCE(SUM(CASE WHEN vote_value = -1 THEN 1 ELSE 0 END), 0) AS downvotes_issued
+      FROM comment_votes
+      WHERE voter_user_id = ?
+      `
+    )
+      .bind(userId)
+      .first();
+
+    const chirpsIssued = await env.DB.prepare(
+      `
+      SELECT
+        COUNT(*) AS chirps_issued,
+        COALESCE(SUM(helpful_score), 0) AS tape_to_tape_issued,
+        COALESCE(SUM(funny_score), 0) AS laughs_issued,
+        COALESCE(SUM(heat_score), 0) AS heat_issued,
+        COALESCE(SUM(rude_score), 0) AS cheap_shot_issued,
+        COALESCE(SUM(targeted_score), 0) AS head_hunting_issued,
+        COALESCE(SUM(spam_score), 0) AS gongshow_issued
+      FROM content_chirps
+      WHERE chirped_by_user_id = ?
+        AND status = 'active'
+      `
+    )
+      .bind(userId)
+      .first();
+
+    const numberValue = (value) => Number(value || 0);
+
+    const totalVotesIssued = numberValue(votesIssued?.total_votes_issued);
+    const upvotesIssued = numberValue(votesIssued?.upvotes_issued);
+    const downvotesIssued = numberValue(votesIssued?.downvotes_issued);
+
+    const chirpsIssuedCount = numberValue(chirpsIssued?.chirps_issued);
+
+    const positiveChirpScore =
+      numberValue(chirpsIssued?.tape_to_tape_issued) +
+      numberValue(chirpsIssued?.laughs_issued);
+
+    const spicyChirpScore = numberValue(chirpsIssued?.heat_issued);
+
+    const negativeChirpScore =
+      numberValue(chirpsIssued?.cheap_shot_issued) +
+      numberValue(chirpsIssued?.head_hunting_issued) +
+      numberValue(chirpsIssued?.gongshow_issued);
+
+    const percent = (part, total) => {
+      if (!total) return 0;
+      return Math.round((Number(part || 0) / Number(total || 0)) * 100);
+    };
+
+    const downvoteRate = percent(downvotesIssued, totalVotesIssued);
+    const upvoteRate = percent(upvotesIssued, totalVotesIssued);
+
+    const toneTotal = positiveChirpScore + negativeChirpScore;
+
+    const positiveChirpRate = percent(positiveChirpScore, toneTotal);
+    const negativeChirpRate = percent(negativeChirpScore, toneTotal);
+
+    const totalIssuedActions = totalVotesIssued + chirpsIssuedCount;
+
+    const vibe = getCommunityVibeLabel({
+      totalIssuedActions,
+      totalVotesIssued,
+      chirpsIssuedCount,
+      upvoteRate,
+      downvoteRate,
+      positiveChirpRate,
+      negativeChirpRate,
+      negativeChirpScore
+    });
+
+    return json({
+      ok: true,
+      profile: {
+        user_id: userId,
+        username: profile.username,
+        display_name: profile.display_name
+      },
+      community_vibe: {
+        label: vibe.label,
+        class_name: vibe.className,
+        summary: vibe.summary,
+
+        issued: {
+          total_actions: totalIssuedActions,
+
+          votes: {
+            total: totalVotesIssued,
+            upvotes: upvotesIssued,
+            downvotes: downvotesIssued,
+            upvote_rate: upvoteRate,
+            downvote_rate: downvoteRate
+          },
+
+          chirps: {
+            total: chirpsIssuedCount,
+
+            positive_score: positiveChirpScore,
+            spicy_score: spicyChirpScore,
+            negative_score: negativeChirpScore,
+
+            positive_rate: positiveChirpRate,
+            negative_rate: negativeChirpRate,
+
+            tape_to_tape_score: numberValue(chirpsIssued?.tape_to_tape_issued),
+            laughs_score: numberValue(chirpsIssued?.laughs_issued),
+            heat_score: spicyChirpScore,
+            cheap_shot_score: numberValue(chirpsIssued?.cheap_shot_issued),
+            head_hunting_score: numberValue(chirpsIssued?.head_hunting_issued),
+            gongshow_score: numberValue(chirpsIssued?.gongshow_issued)
+          }
+        }
+      }
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to load Community Vibe.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
+function getCommunityVibeLabel(metrics) {
+  const totalIssuedActions = Number(metrics.totalIssuedActions || 0);
+  const totalVotesIssued = Number(metrics.totalVotesIssued || 0);
+  const chirpsIssuedCount = Number(metrics.chirpsIssuedCount || 0);
+  const upvoteRate = Number(metrics.upvoteRate || 0);
+  const downvoteRate = Number(metrics.downvoteRate || 0);
+  const positiveChirpRate = Number(metrics.positiveChirpRate || 0);
+  const negativeChirpRate = Number(metrics.negativeChirpRate || 0);
+  const negativeChirpScore = Number(metrics.negativeChirpScore || 0);
+
+  if (totalIssuedActions < 10) {
+    return {
+      label: "Still Warming Up",
+      className: "vibe-warming-up",
+      summary: "Not enough voting or chirping history yet."
+    };
+  }
+
+  if (totalVotesIssued >= 15 && downvoteRate >= 70) {
+    return {
+      label: "Hard Marker",
+      className: "vibe-hard-marker",
+      summary: "Mostly uses votes to knock content down."
+    };
+  }
+
+  if (chirpsIssuedCount >= 8 && negativeChirpRate >= 70) {
+    return {
+      label: "Chirp Goblin",
+      className: "vibe-chirp-goblin",
+      summary: "Throws a lot of negative chirp energy."
+    };
+  }
+
+  if (negativeChirpScore >= 25 && negativeChirpRate >= 55) {
+    return {
+      label: "Bench Scout",
+      className: "vibe-bench-scout",
+      summary: "Often spots rough tone, but may lean critical."
+    };
+  }
+
+  if (totalVotesIssued >= 10 && upvoteRate >= 70 && positiveChirpRate >= 50) {
+    return {
+      label: "Good Teammate",
+      className: "vibe-good-teammate",
+      summary: "Mostly boosts and supports the room."
+    };
+  }
+
+  if (chirpsIssuedCount >= 8 && positiveChirpRate >= 70) {
+    return {
+      label: "Playmaker",
+      className: "vibe-playmaker",
+      summary: "Uses chirps to highlight good contributions."
+    };
+  }
+
+  return {
+    label: "Balanced Teammate",
+    className: "vibe-balanced-teammate",
+    summary: "Mixes positive and critical feedback."
+  };
 }
 
 async function getProfileKarma(env, username) {
