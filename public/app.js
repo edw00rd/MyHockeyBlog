@@ -1214,6 +1214,50 @@ function getRentARefCommentClass(comment) {
   return "rent-a-ref-call-green";
 }
 
+function isRentARefCommentForSort(comment) {
+  const authorUserId = String(comment?.author_user_id || "");
+  const authorUsername = String(comment?.author_username || "").toLowerCase();
+
+  return (
+    authorUserId === RENT_A_REF_USER_ID ||
+    authorUsername === RENT_A_REF_USERNAME
+  );
+}
+
+function sortCommentTree(comments = []) {
+  comments.sort((a, b) => {
+    const aIsRef = isRentARefCommentForSort(a);
+    const bIsRef = isRentARefCommentForSort(b);
+
+    if (aIsRef && !bIsRef) return -1;
+    if (!aIsRef && bIsRef) return 1;
+
+    const scoreA = Number(a.score || 0);
+    const scoreB = Number(b.score || 0);
+
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
+    }
+
+    const createdA = Date.parse(a.created_at || "");
+    const createdB = Date.parse(b.created_at || "");
+
+    if (Number.isFinite(createdA) && Number.isFinite(createdB)) {
+      return createdA - createdB;
+    }
+
+    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  });
+
+  comments.forEach((comment) => {
+    if (comment.replies?.length) {
+      sortCommentTree(comment.replies);
+    }
+  });
+
+  return comments;
+}
+
 function buildCommentTree(comments = []) {
   const byId = new Map();
   const roots = [];
@@ -1226,18 +1270,15 @@ function buildCommentTree(comments = []) {
   });
 
   byId.forEach((comment) => {
-    const parentId = String(comment.parent_comment_id || "");
-
-    if (parentId && byId.has(parentId)) {
-      byId.get(parentId).replies.push(comment);
+    if (comment.parent_comment_id && byId.has(comment.parent_comment_id)) {
+      byId.get(comment.parent_comment_id).replies.push(comment);
     } else {
       roots.push(comment);
     }
   });
 
-  return roots;
+  return sortCommentTree(roots);
 }
-
 function updateCommentToggleCount(postId, comments = []) {
   const toggle = document.querySelector(`.comment-toggle[data-post-id="${CSS.escape(postId)}"]`);
 
