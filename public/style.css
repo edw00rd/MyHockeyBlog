@@ -1290,3 +1290,114 @@ textarea:focus {
 .comment-replies[hidden] {
   display: none !important;
 }
+
+/* Community Vibe card */
+
+.community-vibe {
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(159, 177, 200, 0.16);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.community-vibe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.community-vibe-header strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: right;
+}
+
+.vibe-badge {
+  border-color: rgba(0, 200, 255, 0.28);
+}
+
+.community-vibe-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.community-vibe-stats div {
+  padding: 0.55rem;
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.community-vibe-stats strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.community-vibe-stats span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.community-vibe-meter {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(159, 177, 200, 0.13);
+}
+
+.community-vibe-meter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.community-vibe-meter-row strong {
+  color: var(--text);
+}
+
+/* Community Vibe label colors */
+
+.community-vibe.vibe-warming-up {
+  border-color: rgba(159, 177, 200, 0.16);
+}
+
+.community-vibe.vibe-good-teammate {
+  border-color: rgba(64, 255, 164, 0.34);
+  box-shadow: 0 0 0 1px rgba(64, 255, 164, 0.08);
+}
+
+.community-vibe.vibe-playmaker {
+  border-color: rgba(0, 200, 255, 0.38);
+  box-shadow: 0 0 0 1px rgba(0, 200, 255, 0.08);
+}
+
+.community-vibe.vibe-balanced-teammate {
+  border-color: rgba(159, 177, 200, 0.22);
+}
+
+.community-vibe.vibe-bench-scout {
+  border-color: rgba(255, 205, 86, 0.36);
+  box-shadow: 0 0 0 1px rgba(255, 205, 86, 0.08);
+}
+
+.community-vibe.vibe-hard-marker,
+.community-vibe.vibe-chirp-goblin {
+  border-color: rgba(255, 95, 109, 0.38);
+  box-shadow: 0 0 0 1px rgba(255, 95, 109, 0.08);
+}
