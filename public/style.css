@@ -1653,3 +1653,26 @@ textarea:focus {
     padding-left: 0.6rem;
   }
 }
+
+.comment-body-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(159, 177, 200, 0.22);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 950;
+}
+
+.comment-body-placeholder:hover {
+  color: var(--text);
+  border-color: rgba(0, 200, 255, 0.44);
+}
+
+.comment-body-placeholder[hidden] {
+  display: none !important;
+}
