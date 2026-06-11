@@ -1401,3 +1401,255 @@ textarea:focus {
   border-color: rgba(255, 95, 109, 0.38);
   box-shadow: 0 0 0 1px rgba(255, 95, 109, 0.08);
 }
+
+/* Thread UI polish */
+
+.comment-tree {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.comment-node {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.comment-card {
+  padding: 0.9rem;
+}
+
+.comment-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.comment-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.comment-card-header-main {
+  min-width: 0;
+}
+
+.comment-card-header-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  line-height: 1.2;
+}
+
+.comment-card-author {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.comment-card-date,
+.comment-card-reply-count,
+.comment-card-meta-sep,
+.comment-card-subline {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.comment-tree-toggle,
+.comment-tree-toggle-spacer {
+  flex: 0 0 auto;
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
+.comment-tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(159, 177, 200, 0.28);
+  border-radius: 0.45rem;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.comment-tree-toggle:hover {
+  border-color: rgba(0, 200, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(0, 200, 255, 0.1);
+}
+
+.comment-tree-toggle-icon {
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+.comment-tree-toggle-spacer {
+  display: inline-block;
+}
+
+.comment-body-toggle {
+  flex: 0 0 auto;
+  border: 1px solid rgba(159, 177, 200, 0.22);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.comment-body-toggle:hover {
+  color: var(--text);
+  border-color: rgba(0, 200, 255, 0.44);
+}
+
+.comment-body-placeholder {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 950;
+  padding: 0.2rem 0;
+}
+
+.comment-body-placeholder[hidden],
+.comment-body-block[hidden],
+.comment-replies[hidden] {
+  display: none !important;
+}
+
+.comment-node.comment-replies-collapsed > .comment-replies {
+  display: none !important;
+}
+
+.comment-card.comment-body-hidden {
+  opacity: 0.92;
+}
+
+/* Better nested thread spacing */
+
+.comment-replies {
+  display: grid;
+  gap: 0.85rem;
+  margin-left: 1rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid rgba(0, 200, 255, 0.18);
+}
+
+.comment-depth-0 > .comment-card {
+  margin-left: 0;
+}
+
+.comment-depth-1 > .comment-card,
+.comment-depth-2 > .comment-card,
+.comment-depth-3 > .comment-card,
+.comment-depth-4 > .comment-card,
+.comment-depth-max > .comment-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+}
+
+/* Rent-a-Ref / Zebra callouts */
+
+.rent-a-ref-node {
+  margin-top: 0.25rem;
+}
+
+.rent-a-ref-comment .comment-card-header {
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.rent-a-ref-zebra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 1rem;
+}
+
+.rent-a-ref-header-line {
+  gap: 0.4rem;
+}
+
+.rent-a-ref-whistle {
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
+.rent-a-ref-comment .comment-card-author {
+  color: var(--text);
+}
+
+.rent-a-ref-comment .comment-card-subline {
+  margin-top: 0.18rem;
+}
+
+.rent-a-ref-comment .boxed-content {
+  margin-top: 0.35rem;
+}
+
+.rent-a-ref-comment .comment-body-ref {
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.rent-a-ref-comment .comment-body-ref p {
+  margin: 0;
+  font-weight: 950;
+}
+
+/* Keep controls cleaner inside comments */
+
+.comment-card .comment-actions {
+  margin-top: 0.7rem;
+}
+
+.comment-card .post-meta {
+  margin-top: 0.7rem;
+}
+
+.comment-card .chirp-profile-wrap {
+  margin-top: 0.7rem;
+}
+
+.reply-controls {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .comment-card-header {
+    align-items: flex-start;
+  }
+
+  .comment-card-header-left {
+    align-items: flex-start;
+  }
+
+  .comment-body-toggle {
+    padding: 0.26rem 0.52rem;
+  }
+
+  .comment-replies {
+    margin-left: 0.45rem;
+    padding-left: 0.6rem;
+  }
+}
