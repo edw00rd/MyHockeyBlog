@@ -1427,10 +1427,24 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
       </div>
     `;
 
+  const rentARefButtonHtml = rentARefComment
+    ? ""
+    : `
+      <button
+        class="button ghost rent-a-ref-button comment-rent-a-ref-action ${rentARefReadyForComment ? "" : "disabled"}"
+        type="button"
+        data-comment-id="${escapeHtml(comment.id)}"
+        ${rentARefReadyForComment ? "" : "disabled"}
+        title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
+      >
+        Rent-a-Ref
+      </button>
+    `;
+  
   const commentChirpControlsHtml = rentARefComment
     ? ""
     : `
-      <div class="post-meta">
+      <div class="comment-chirp-row">
         <button
           class="button ghost chirp-button ${userChirped ? "active" : ""}"
           type="button"
@@ -1439,22 +1453,12 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
         >
           ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
         </button>
-
+  
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
-
-        <button
-          class="button ghost rent-a-ref-button ${rentARefReadyForComment ? "" : "disabled"}"
-          type="button"
-          data-comment-id="${escapeHtml(comment.id)}"
-          ${rentARefReadyForComment ? "" : "disabled"}
-          title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
-        >
-          Rent-a-Ref
-        </button>
       </div>
-
+  
       <div class="chirp-profile-wrap">
         ${chirpProfileHtml}
       </div>
@@ -1463,15 +1467,19 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const replyControlsHtml = commentsEnabled && !commentIsBoxed && !rentARefComment
     ? `
       <div class="reply-controls">
-        <button
-          class="inline-button comment-reply-toggle"
-          type="button"
-          data-post-id="${escapeHtml(postId)}"
-          data-parent-comment-id="${escapeHtml(comment.id)}"
-        >
-          Reply
-        </button>
-
+        <div class="comment-bottom-actions">
+          <button
+            class="inline-button comment-reply-toggle comment-reply-main"
+            type="button"
+            data-post-id="${escapeHtml(postId)}"
+            data-parent-comment-id="${escapeHtml(comment.id)}"
+          >
+            Reply
+          </button>
+  
+          ${rentARefButtonHtml}
+        </div>
+  
         <form
           class="reply-form"
           data-post-id="${escapeHtml(postId)}"
@@ -1589,7 +1597,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
             <div class="comment-body-block ${rentARefComment ? "comment-body-ref" : ""}">
               <p>${escapeHtml(comment.body)}</p>
             </div>
-
+          
             <button
               class="comment-body-placeholder"
               type="button"
@@ -1600,12 +1608,12 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
             >
               [...]
             </button>
+          
+            ${commentVoteControlsHtml}
           </div>
-
-          ${commentVoteControlsHtml}
-
+          
           ${commentChirpControlsHtml}
-
+          
           ${replyControlsHtml}
         </div>
       </div>
