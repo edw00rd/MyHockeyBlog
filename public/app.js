@@ -1306,15 +1306,13 @@ function renderComments(postId, comments, commentsEnabled = true) {
     </div>
   `;
 
-  wireCommentVoteControls();
-  wireChirpControls();
-  wireRentARefCommentControls();
-  wireReplyControls();
-  wireCommentCollapseControls();
-  
-  if (typeof wireModerationControls === "function") {
-    wireModerationControls();
-  }
+    wireCommentVoteControls();
+    wireChirpControls();
+    wireRentARefCommentControls();
+    wireReplyControls();
+    wireCommentCollapseControls();
+    wireCommentBodyControls();
+    if (typeof wireModerationControls === "function") wireModerationControls();
 }
 
 function wireCommentVoteControls() {
@@ -1396,6 +1394,8 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     : "";
 
   const depthClass = depth >= 5 ? "comment-depth-max" : `comment-depth-${depth}`;
+  const replyCount = countCommentReplies(comment);
+  const replyLabel = replyCount === 1 ? "1 reply" : `${replyCount} replies`;
 
   const commentVoteControlsHtml = rentARefComment
     ? ""
@@ -1488,6 +1488,72 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     `
     : "";
 
+  const normalCommentHeaderHtml = `
+    <div class="comment-card-header-left">
+      ${
+        replyCount > 0
+          ? `
+            <button
+              class="comment-tree-toggle"
+              type="button"
+              data-comment-collapse
+              data-comment-id="${escapeHtml(comment.id)}"
+              aria-expanded="true"
+              title="Hide replies"
+            >
+              <span class="comment-tree-toggle-icon">▼</span>
+            </button>
+          `
+          : `<span class="comment-tree-toggle-spacer"></span>`
+      }
+
+      <div class="comment-card-header-main">
+        <div class="comment-card-header-line">
+          <span class="comment-card-author">${escapeHtml(author)}</span>
+          <span class="comment-card-meta-sep">·</span>
+          <span class="comment-card-date">${formatDate(comment.created_at)}</span>
+          <span class="comment-card-meta-sep">·</span>
+          <span class="comment-card-reply-count">${escapeHtml(replyLabel)}</span>
+        </div>
+      </div>
+    </div>
+
+    ${
+      commentIsBoxed
+        ? ""
+        : `
+          <button
+            class="comment-body-toggle"
+            type="button"
+            data-comment-body-toggle
+            data-comment-id="${escapeHtml(comment.id)}"
+            aria-expanded="true"
+            title="Hide comment body"
+          >
+            hide body
+          </button>
+        `
+    }
+  `;
+
+  const rentARefHeaderHtml = `
+    <div class="comment-card-header-left">
+      <span class="rent-a-ref-zebra" aria-hidden="true">🦓</span>
+
+      <div class="comment-card-header-main">
+        <div class="comment-card-header-line rent-a-ref-header-line">
+          <span class="comment-card-author">Rent-a-Ref</span>
+          <span class="comment-card-meta-sep">·</span>
+          <span class="rent-a-ref-whistle">🚨 Whistle’s up</span>
+        </div>
+
+        <div class="comment-card-subline">
+          ${formatDate(comment.created_at)}
+        </div>
+      </div>
+    </div>
+  `;
+
   const repliesHtml = comment.replies?.length
     ? `
       <div class="comment-replies">
@@ -1498,35 +1564,20 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     `
     : "";
 
-  const replyCount = countCommentReplies(comment);
-  const commentPreview = String(comment.body || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 90);
-  
   return `
     <div
-      class="comment-node ${depthClass}"
+      class="comment-node ${depthClass} ${rentARefComment ? "rent-a-ref-node" : ""}"
       data-comment-node-id="${escapeHtml(comment.id)}"
-      data-comment-author="${escapeHtml(author)}"
-      data-comment-preview="${escapeHtml(commentPreview)}"
-      data-comment-reply-count="${replyCount}"
     >
       <div
         class="comment-card ${rentARefComment ? `rent-a-ref-comment ${rentARefClass}` : ""}"
         data-comment-id="${escapeHtml(comment.id)}"
       >
-        <div class="comment-card-toolbar">
-          <button
-            class="inline-button comment-collapse-toggle"
-            type="button"
-            data-comment-id="${escapeHtml(comment.id)}"
-            aria-expanded="true"
-          >
-            Collapse
-          </button>
+        <div class="comment-card-header">
+          ${rentARefComment ? rentARefHeaderHtml : normalCommentHeaderHtml}
         </div>
-          ${moderationBannerHtml}
+
+        ${moderationBannerHtml}
 
         <div
           id="comment-boxed-${escapeHtml(comment.id)}"
@@ -1534,17 +1585,19 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
           data-moderation-locked="${commentIsBoxed ? "true" : "false"}"
           ${commentIsBoxed ? "hidden" : ""}
         >
-          <div class="comment-body-block ${rentARefComment ? "comment-body-ref" : ""}">
-            <p>${escapeHtml(comment.body)}</p>
+          <div class="comment-body-wrap">
+            <div class="comment-body-block ${rentARefComment ? "comment-body-ref" : ""}">
+              <p>${escapeHtml(comment.body)}</p>
+            </div>
+
+            <div class="comment-body-placeholder" hidden>
+              [...]
+            </div>
           </div>
 
           ${commentVoteControlsHtml}
 
           ${commentChirpControlsHtml}
-
-          <p class="comment-author-line muted small">
-            ${escapeHtml(author)} • ${formatDate(comment.created_at)}
-          </p>
 
           ${replyControlsHtml}
         </div>
@@ -1556,41 +1609,63 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
 }
 
 function wireCommentCollapseControls() {
-  document.querySelectorAll(".comment-collapse-toggle").forEach((button) => {
+  document.querySelectorAll("[data-comment-collapse]").forEach((button) => {
     if (button.dataset.wired) return;
     button.dataset.wired = "true";
 
     button.addEventListener("click", () => {
-      const commentId = button.dataset.commentId;
-      const node = document.querySelector(
-        `.comment-node[data-comment-node-id="${CSS.escape(commentId)}"]`
-      );
+      const node = button.closest(".comment-node");
 
       if (!node) return;
 
-      const body = node.querySelector(":scope > .comment-card > .boxed-content");
       const replies = node.querySelector(":scope > .comment-replies");
-
+      const icon = button.querySelector(".comment-tree-toggle-icon");
       const isExpanded = button.getAttribute("aria-expanded") !== "false";
       const nextExpanded = !isExpanded;
-
-      if (body) {
-        const moderationLocked = body.dataset.moderationLocked === "true";
-      
-        if (moderationLocked) {
-          body.hidden = true;
-        } else {
-          body.hidden = !nextExpanded;
-        }
-      }
 
       if (replies) {
         replies.hidden = !nextExpanded;
       }
 
+      if (icon) {
+        icon.textContent = nextExpanded ? "▼" : "▶";
+      }
+
       button.setAttribute("aria-expanded", String(nextExpanded));
-      button.textContent = nextExpanded ? "Collapse" : "Expand";
-      node.classList.toggle("comment-collapsed", !nextExpanded);
+      button.title = nextExpanded ? "Hide replies" : "Show replies";
+      node.classList.toggle("comment-replies-collapsed", !nextExpanded);
+    });
+  });
+}
+
+function wireCommentBodyControls() {
+  document.querySelectorAll("[data-comment-body-toggle]").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", () => {
+      const card = button.closest(".comment-card");
+
+      if (!card) return;
+
+      const bodyBlock = card.querySelector(":scope .comment-body-block");
+      const placeholder = card.querySelector(":scope .comment-body-placeholder");
+
+      const isExpanded = button.getAttribute("aria-expanded") !== "false";
+      const nextExpanded = !isExpanded;
+
+      if (bodyBlock) {
+        bodyBlock.hidden = !nextExpanded;
+      }
+
+      if (placeholder) {
+        placeholder.hidden = nextExpanded;
+      }
+
+      button.setAttribute("aria-expanded", String(nextExpanded));
+      button.textContent = nextExpanded ? "hide body" : "show body";
+      button.title = nextExpanded ? "Hide comment body" : "Show comment body";
+      card.classList.toggle("comment-body-hidden", !nextExpanded);
     });
   });
 }
