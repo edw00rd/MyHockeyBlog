@@ -1676,3 +1676,96 @@ textarea:focus {
 .comment-body-placeholder[hidden] {
   display: none !important;
 }
+
+/* Comment action layout polish */
+
+.comment-body-wrap {
+  position: relative;
+  padding-bottom: 1.15rem;
+}
+
+.comment-body-wrap .comment-body-block,
+.comment-body-wrap .comment-body-placeholder {
+  padding-right: 7.25rem;
+}
+
+.comment-body-wrap > .comment-actions {
+  position: absolute;
+  right: 0.6rem;
+  bottom: -0.95rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.18rem;
+  border: 1px solid rgba(159, 177, 200, 0.22);
+  border-radius: 999px;
+  background: rgba(7, 16, 30, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 200, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.comment-body-wrap > .comment-actions .comment-vote {
+  width: 1.95rem;
+  height: 1.95rem;
+  min-width: 1.95rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.comment-body-wrap > .comment-actions .comment-score {
+  min-width: 1.35rem;
+  color: var(--text);
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 950;
+}
+
+.comment-body-wrap > .comment-actions .comment-vote.active {
+  border-color: rgba(0, 245, 212, 0.8);
+  box-shadow: 0 0 0 2px rgba(0, 245, 212, 0.14);
+}
+
+.comment-chirp-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.95rem;
+}
+
+.comment-bottom-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.comment-reply-main {
+  width: 100%;
+  min-height: 2.1rem;
+  justify-content: center;
+  text-align: center;
+  border-radius: 999px;
+}
+
+.comment-rent-a-ref-action {
+  min-height: 2.1rem;
+  min-width: 7.5rem;
+  justify-content: center;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.comment-rent-a-ref-action.disabled {
+  opacity: 0.42;
+}
+
+.reply-controls {
+  margin-top: 0.75rem;
+}
+
+.reply-controls .reply-form {
+  margin-top: 0.65rem;
+}
