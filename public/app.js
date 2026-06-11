@@ -1590,9 +1590,16 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
               <p>${escapeHtml(comment.body)}</p>
             </div>
 
-            <div class="comment-body-placeholder" hidden>
+            <button
+              class="comment-body-placeholder"
+              type="button"
+              data-comment-body-placeholder
+              data-comment-id="${escapeHtml(comment.id)}"
+              hidden
+              aria-label="Show comment body"
+            >
               [...]
-            </div>
+            </button>
           </div>
 
           ${commentVoteControlsHtml}
@@ -1638,6 +1645,30 @@ function wireCommentCollapseControls() {
   });
 }
 
+function setCommentBodyExpanded(card, expanded) {
+  if (!card) return;
+
+  const bodyBlock = card.querySelector(":scope .comment-body-block");
+  const placeholder = card.querySelector(":scope .comment-body-placeholder");
+  const toggle = card.querySelector(":scope [data-comment-body-toggle]");
+
+  if (bodyBlock) {
+    bodyBlock.hidden = !expanded;
+  }
+
+  if (placeholder) {
+    placeholder.hidden = expanded;
+  }
+
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.textContent = expanded ? "hide body" : "show body";
+    toggle.title = expanded ? "Hide comment body" : "Show comment body";
+  }
+
+  card.classList.toggle("comment-body-hidden", !expanded);
+}
+
 function wireCommentBodyControls() {
   document.querySelectorAll("[data-comment-body-toggle]").forEach((button) => {
     if (button.dataset.wired) return;
@@ -1648,24 +1679,21 @@ function wireCommentBodyControls() {
 
       if (!card) return;
 
-      const bodyBlock = card.querySelector(":scope .comment-body-block");
-      const placeholder = card.querySelector(":scope .comment-body-placeholder");
-
       const isExpanded = button.getAttribute("aria-expanded") !== "false";
-      const nextExpanded = !isExpanded;
+      setCommentBodyExpanded(card, !isExpanded);
+    });
+  });
 
-      if (bodyBlock) {
-        bodyBlock.hidden = !nextExpanded;
-      }
+  document.querySelectorAll("[data-comment-body-placeholder]").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
 
-      if (placeholder) {
-        placeholder.hidden = nextExpanded;
-      }
+    button.addEventListener("click", () => {
+      const card = button.closest(".comment-card");
 
-      button.setAttribute("aria-expanded", String(nextExpanded));
-      button.textContent = nextExpanded ? "hide body" : "show body";
-      button.title = nextExpanded ? "Hide comment body" : "Show comment body";
-      card.classList.toggle("comment-body-hidden", !nextExpanded);
+      if (!card) return;
+
+      setCommentBodyExpanded(card, true);
     });
   });
 }
