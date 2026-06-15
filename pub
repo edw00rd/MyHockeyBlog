@@ -10,12 +10,42 @@ let knownUsers = [];
 const $ = (selector) => document.querySelector(selector);
 
 const CHIRP_OPTIONS = [
-  { value: 1, label: "Good Chirp", description: "funny hockey banter" },
-  { value: 2, label: "Tape-to-Tape", description: "useful feedback that lands clean" },
-  { value: 3, label: "Spicy but Fair", description: "hot, but still in bounds" },
-  { value: 4, label: "Tone Check", description: "drifting into cheap-shot territory" },
-  { value: 5, label: "Cheap Shot", description: "personal or disrespectful" },
-  { value: 6, label: "Gongshow", description: "spam, trolling, or noise" }
+  {
+    value: 1,
+    type: "good_chirp",
+    label: "Good Chirp",
+    description: "funny hockey banter"
+  },
+  {
+    value: 2,
+    type: "tape_to_tape",
+    label: "Tape-to-Tape",
+    description: "useful feedback that lands clean"
+  },
+  {
+    value: 3,
+    type: "spicy_but_fair",
+    label: "Spicy but Fair",
+    description: "hot, but still in bounds"
+  },
+  {
+    value: 4,
+    type: "tone_check",
+    label: "Tone Check",
+    description: "drifting into cheap-shot territory"
+  },
+  {
+    value: 5,
+    type: "cheap_shot",
+    label: "Cheap Shot",
+    description: "personal or disrespectful"
+  },
+  {
+    value: 6,
+    type: "gongshow",
+    label: "Gongshow",
+    description: "spam, trolling, or noise"
+  }
 ];
 
 function getSelectedUserId() {
@@ -1884,6 +1914,7 @@ function renderChirpPicker({
       type="button"
       class="chirp-option"
       data-chirp-value="${option.value}"
+      data-chirp-type="${escapeHtml(option.type)}"
       data-content-type="${escapeHtml(contentType)}"
       data-content-id="${escapeHtml(contentId)}"
     >
@@ -2201,10 +2232,10 @@ function wireRentARefCommentControls() {
 }
 
 function wireChirpPickerControls() {
-  const triggers = document.querySelectorAll(".chirp-picker-trigger");
-  const options = document.querySelectorAll(".chirp-option");
+  document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
+    if (trigger.dataset.wired) return;
+    trigger.dataset.wired = "true";
 
-  triggers.forEach((trigger) => {
     trigger.addEventListener("click", (event) => {
       event.stopPropagation();
 
@@ -2212,6 +2243,8 @@ function wireChirpPickerControls() {
       if (!picker || picker.classList.contains("is-disabled")) return;
 
       const menu = picker.querySelector(".chirp-picker-menu");
+      if (!menu) return;
+
       const isOpen = !menu.hasAttribute("hidden");
 
       document.querySelectorAll(".chirp-picker-menu").forEach((otherMenu) => {
@@ -2229,53 +2262,54 @@ function wireChirpPickerControls() {
     });
   });
 
-  options.forEach((option) => {
+  document.querySelectorAll(".chirp-option").forEach((option) => {
+    if (option.dataset.wired) return;
+    option.dataset.wired = "true";
+
     option.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
 
-      const chirpValue = Number(option.dataset.chirpValue);
+      const chirpType = option.dataset.chirpType;
       const contentType = option.dataset.contentType;
       const contentId = option.dataset.contentId;
 
-      if (!chirpValue || !contentType || !contentId) return;
+      if (!chirpType || !contentType || !contentId) return;
 
       try {
-        // IMPORTANT:
-        // Replace ONLY the body payload below if your existing chirp endpoint uses different field names.
-        // Keep your current chirp API route if it is already working.
-        const response = await fetch("/api/chirps", {
+        option.disabled = true;
+
+        await fetchJson("/api/chirps", {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: JSON.stringify({
             content_type: contentType,
             content_id: contentId,
-            chirp_type: chirpValue
+            chirp_type: chirpType
           })
         });
 
-        const data = await response.json();
-
-        if (!response.ok || data.ok === false) {
-          throw new Error(data.error || data.message || "Could not submit chirp.");
-        }
-
-        await loadHomepageData();
+        await loadHomepage();
       } catch (error) {
         alert(error.message || "Could not submit chirp.");
+      } finally {
+        option.disabled = false;
       }
     });
   });
 
-  document.addEventListener("click", () => {
-    document.querySelectorAll(".chirp-picker-menu").forEach((menu) => {
-      menu.setAttribute("hidden", "");
-    });
+  if (!document.body.dataset.chirpPickerDismissWired) {
+    document.body.dataset.chirpPickerDismissWired = "true";
 
-    document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
-      trigger.setAttribute("aria-expanded", "false");
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".chirp-picker-menu").forEach((menu) => {
+        menu.setAttribute("hidden", "");
+      });
+
+      document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
+        trigger.setAttribute("aria-expanded", "false");
+      });
     });
-  });
+  }
 }
 
 function wireRentARefControls() {
