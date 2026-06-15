@@ -10,12 +10,12 @@ let knownUsers = [];
 const $ = (selector) => document.querySelector(selector);
 
 const CHIRP_OPTIONS = [
-  { value: 1, label: "Good Chirp", description: "funny hockey banter" },
-  { value: 2, label: "Tape-to-Tape", description: "useful feedback that lands clean" },
-  { value: 3, label: "Spicy but Fair", description: "hot, but still in bounds" },
-  { value: 4, label: "Tone Check", description: "drifting into cheap-shot territory" },
-  { value: 5, label: "Cheap Shot", description: "personal or disrespectful" },
-  { value: 6, label: "Gongshow", description: "spam, trolling, or noise" }
+  { value: 1, type: "good_chirp", label: "Good Chirp", description: "funny hockey banter" },
+  { value: 2, type: "tape_to_tape", label: "Tape-to-Tape", description: "useful feedback that lands clean" },
+  { value: 3, type: "spicy_but_fair", label: "Spicy but Fair", description: "hot, but still in bounds" },
+  { value: 4, type: "tone_check", label: "Tone Check", description: "drifting into cheap-shot territory" },
+  { value: 5, type: "cheap_shot", label: "Cheap Shot", description: "personal or disrespectful" },
+  { value: 6, type: "gongshow", label: "Gongshow", description: "spam, trolling, or noise" }
 ];
 
 function getSelectedUserId() {
@@ -1021,6 +1021,7 @@ function renderPosts(posts) {
 
   wireCommentControls();
   wireChirpControls();
+  wireChirpPickerControls();
   wireRentARefControls();
   wireModerationControls();
 }
@@ -1314,6 +1315,7 @@ function renderComments(postId, comments, commentsEnabled = true) {
 
     wireCommentVoteControls();
     wireChirpControls();
+    wireChirpPickerControls();
     wireRentARefCommentControls();
     wireReplyControls();
     wireCommentCollapseControls();
@@ -1883,6 +1885,7 @@ function renderChirpPicker({
       type="button"
       class="chirp-option"
       data-chirp-value="${option.value}"
+      data-chirp-type="${escapeHtml(option.type)}"
       data-content-type="${escapeHtml(contentType)}"
       data-content-id="${escapeHtml(contentId)}"
     >
@@ -1920,6 +1923,99 @@ function renderChirpPicker({
       </div>
     </div>
   `;
+}
+
+function wireChirpPickerControls() {
+  document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
+    if (trigger.dataset.wired) return;
+    trigger.dataset.wired = "true";
+
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const picker = trigger.closest(".chirp-picker");
+      if (!picker || picker.classList.contains("is-disabled")) return;
+
+      const menu = picker.querySelector(".chirp-picker-menu");
+      if (!menu) return;
+
+      const isOpen = !menu.hasAttribute("hidden");
+
+      document.querySelectorAll(".chirp-picker-menu").forEach((otherMenu) => {
+        otherMenu.setAttribute("hidden", "");
+      });
+
+      document.querySelectorAll(".chirp-picker-trigger").forEach((otherTrigger) => {
+        otherTrigger.setAttribute("aria-expanded", "false");
+      });
+
+      if (!isOpen) {
+        menu.removeAttribute("hidden");
+        trigger.setAttribute("aria-expanded", "true");
+      }
+    });
+  });
+
+  document.querySelectorAll(".chirp-option").forEach((option) => {
+    if (option.dataset.wired) return;
+    option.dataset.wired = "true";
+
+    option.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const chirpValue = String(option.dataset.chirpValue || "").trim();
+      const contentType = option.dataset.contentType;
+      const contentId = option.dataset.contentId;
+
+      if (!chirpValue || !contentType || !contentId) return;
+
+      const chirpTypes = {
+        "1": "good_chirp",
+        "2": "tape_to_tape",
+        "3": "spicy_but_fair",
+        "4": "tone_check",
+        "5": "cheap_shot",
+        "6": "gongshow"
+      };
+
+      const chirpType = chirpTypes[chirpValue] || "other";
+
+      try {
+        option.disabled = true;
+
+        await fetchJson("/api/chirps", {
+          method: "POST",
+          body: JSON.stringify({
+            content_type: contentType,
+            content_id: contentId,
+            chirp_type: chirpType
+          })
+        });
+
+        await loadHomepage();
+      } catch (error) {
+        alert(error.message || "Could not submit chirp.");
+      } finally {
+        option.disabled = false;
+      }
+    });
+  });
+
+  if (!document.body.dataset.chirpPickerDismissWired) {
+    document.body.dataset.chirpPickerDismissWired = "true";
+
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".chirp-picker-menu").forEach((menu) => {
+        menu.setAttribute("hidden", "");
+      });
+
+      document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
+        trigger.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
 }
 
 function renderChirpRadar(profile) {
