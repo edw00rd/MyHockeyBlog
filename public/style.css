@@ -1927,3 +1927,18 @@ textarea:focus {
   content: "  ✓";
   color: #ffe600;
 }
+
+/* Keep the open chirp menu above nearby chirp buttons */
+
+.chirp-picker.is-open {
+  z-index: 9999;
+}
+
+.chirp-picker.is-open .chirp-picker-menu {
+  z-index: 10000;
+}
+
+.post-card.is-chirp-menu-open,
+.comment-card.is-chirp-menu-open {
+  z-index: 500;
+}
