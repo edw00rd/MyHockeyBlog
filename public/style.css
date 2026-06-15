@@ -1903,3 +1903,27 @@ textarea:focus {
 .chirp-picker-menu[hidden] {
   display: none !important;
 }
+
+.chirp-option.selected {
+  border-color: rgba(255, 230, 0, 0.75);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 230, 0, 0.14),
+      rgba(0, 220, 255, 0.06)
+    );
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 0, 0.22) inset,
+    0 0 14px rgba(255, 230, 0, 0.12);
+}
+
+.chirp-option.selected .chirp-option-number {
+  background: rgba(255, 230, 0, 0.18);
+  border-color: rgba(255, 230, 0, 0.62);
+  color: #ffe600;
+}
+
+.chirp-option.selected .chirp-option-label::after {
+  content: "  ✓";
+  color: #ffe600;
+}
