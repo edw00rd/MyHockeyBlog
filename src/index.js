@@ -2074,16 +2074,6 @@ async function createRentARefComment(env, postId) {
       );
     }
 
-    if (Number(post.comments_enabled) !== 1) {
-      return json(
-        {
-          ok: false,
-          error: "Rent-a-Ref cannot comment because comments are disabled for this post."
-        },
-        403
-      );
-    }
-
     const now = new Date().toISOString();
 
     await ensureRentARefAuthor(env, now);
