@@ -1947,13 +1947,23 @@ function wireChirpPickerControls() {
       document.querySelectorAll(".chirp-picker-menu").forEach((otherMenu) => {
         otherMenu.setAttribute("hidden", "");
       });
-
+      
+      document.querySelectorAll(".chirp-picker").forEach((otherPicker) => {
+        otherPicker.classList.remove("is-open");
+      });
+      
+      document.querySelectorAll(".post-card, .comment-card").forEach((card) => {
+        card.classList.remove("is-chirp-menu-open");
+      });
+      
       document.querySelectorAll(".chirp-picker-trigger").forEach((otherTrigger) => {
         otherTrigger.setAttribute("aria-expanded", "false");
       });
 
       if (!isOpen) {
         menu.removeAttribute("hidden");
+        picker.classList.add("is-open");
+        picker.closest(".post-card, .comment-card")?.classList.add("is-chirp-menu-open");
         trigger.setAttribute("aria-expanded", "true");
       }
     });
@@ -2012,7 +2022,15 @@ function wireChirpPickerControls() {
       document.querySelectorAll(".chirp-picker-menu").forEach((menu) => {
         menu.setAttribute("hidden", "");
       });
-
+    
+      document.querySelectorAll(".chirp-picker").forEach((picker) => {
+        picker.classList.remove("is-open");
+      });
+    
+      document.querySelectorAll(".post-card, .comment-card").forEach((card) => {
+        card.classList.remove("is-chirp-menu-open");
+      });
+    
       document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
         trigger.setAttribute("aria-expanded", "false");
       });
