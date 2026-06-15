@@ -1021,6 +1021,7 @@ function renderPosts(posts) {
 
   wireCommentControls();
   wireChirpControls();
+  wireChirpPickerControls();
   wireRentARefControls();
   wireModerationControls();
 }
@@ -2195,6 +2196,84 @@ function wireRentARefCommentControls() {
 
         button.textContent = "Rent-a-Ref";
       }
+    });
+  });
+}
+
+function wireChirpPickerControls() {
+  const triggers = document.querySelectorAll(".chirp-picker-trigger");
+  const options = document.querySelectorAll(".chirp-option");
+
+  triggers.forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      const picker = trigger.closest(".chirp-picker");
+      if (!picker || picker.classList.contains("is-disabled")) return;
+
+      const menu = picker.querySelector(".chirp-picker-menu");
+      const isOpen = !menu.hasAttribute("hidden");
+
+      document.querySelectorAll(".chirp-picker-menu").forEach((otherMenu) => {
+        otherMenu.setAttribute("hidden", "");
+      });
+
+      document.querySelectorAll(".chirp-picker-trigger").forEach((otherTrigger) => {
+        otherTrigger.setAttribute("aria-expanded", "false");
+      });
+
+      if (!isOpen) {
+        menu.removeAttribute("hidden");
+        trigger.setAttribute("aria-expanded", "true");
+      }
+    });
+  });
+
+  options.forEach((option) => {
+    option.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const chirpValue = Number(option.dataset.chirpValue);
+      const contentType = option.dataset.contentType;
+      const contentId = option.dataset.contentId;
+
+      if (!chirpValue || !contentType || !contentId) return;
+
+      try {
+        // IMPORTANT:
+        // Replace ONLY the body payload below if your existing chirp endpoint uses different field names.
+        // Keep your current chirp API route if it is already working.
+        const response = await fetch("/api/chirps", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            content_type: contentType,
+            content_id: contentId,
+            chirp_type: chirpValue
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || data.message || "Could not submit chirp.");
+        }
+
+        await loadHomepageData();
+      } catch (error) {
+        alert(error.message || "Could not submit chirp.");
+      }
+    });
+  });
+
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".chirp-picker-menu").forEach((menu) => {
+      menu.setAttribute("hidden", "");
+    });
+
+    document.querySelectorAll(".chirp-picker-trigger").forEach((trigger) => {
+      trigger.setAttribute("aria-expanded", "false");
     });
   });
 }
