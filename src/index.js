@@ -729,7 +729,20 @@ async function getPosts(request, env) {
             LIMIT 1
           ),
           0
-        ) AS user_chirped
+        ) AS user_chirped,
+
+        COALESCE(
+          (
+            SELECT content_chirps.chirp_type
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.chirped_by_user_id = ?
+              AND content_chirps.status = 'active'
+            LIMIT 1
+          ),
+          ''
+        ) AS user_chirp_type
 
       FROM posts
       JOIN users ON users.id = posts.author_user_id
@@ -740,7 +753,7 @@ async function getPosts(request, env) {
       LIMIT 25
       `
     )
-      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, currentUser.user_id)
+      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, currentUser.user_id, currentUser.user_id)
       .all();
 
     return json({
@@ -1008,6 +1021,19 @@ async function getComments(request, env, postId) {
           ),
           0
       ) AS user_chirped,
+
+      COALESCE(
+        (
+          SELECT content_chirps.chirp_type
+          FROM content_chirps
+          WHERE content_chirps.content_type = 'comment'
+            AND content_chirps.content_id = comments.id
+            AND content_chirps.chirped_by_user_id = ?
+            AND content_chirps.status = 'active'
+          LIMIT 1
+        ),
+        ''
+      ) AS user_chirp_type,
       
       COALESCE(
         (
@@ -1040,7 +1066,7 @@ async function getComments(request, env, postId) {
       LIMIT 100
       `
     )
-      .bind(currentUser.user_id, currentUser.user_id, RENT_A_REF_USER_ID, postId)
+      .bind(currentUser.user_id, currentUser.user_id, currentUser.user_id, RENT_A_REF_USER_ID, postId)
       .all();
 
     return json({
