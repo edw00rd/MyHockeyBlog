@@ -504,17 +504,15 @@ function renderProfileChirpTone(data) {
   `;
 }
 
-function isRentARefReadyForComment(comment) {
-  if (isRentARefComment(comment)) return false;
-
-  const lastRentARefAt = comment.last_rent_a_ref_at || "";
-  const lastCommentChirpAt = comment.last_comment_chirp_at || "";
+function isRentARefReady(post) {
+  const lastRentARefAt = post.last_rent_a_ref_at || "";
+  const lastNonRefCommentAt = post.last_non_ref_comment_at || "";
 
   if (!lastRentARefAt) return true;
 
-  if (!lastCommentChirpAt) return false;
+  if (!lastNonRefCommentAt) return false;
 
-  return new Date(lastCommentChirpAt).getTime() >
+  return new Date(lastNonRefCommentAt).getTime() >
     new Date(lastRentARefAt).getTime();
 }
 
@@ -969,19 +967,15 @@ function renderPosts(posts) {
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
-        ${
-          Number(post.comments_enabled) === 1
-            ? `<button
-                class="button ghost rent-a-ref-button ${rentARefReady ? "" : "disabled"}"
-                type="button"
-                data-post-id="${escapeHtml(post.id)}"
-                ${rentARefReady ? "" : "disabled"}
-                title="${rentARefReady ? "Rent-a-Ref can make a call." : "Rent-a-Ref already made the latest call. New comment needed."}"
-              >
-                Rent-a-Ref
-              </button>`
-            : ""
-        }
+        <button
+          class="button ghost rent-a-ref-button ${rentARefReady ? "" : "disabled"}"
+          type="button"
+          data-post-id="${escapeHtml(post.id)}"
+          ${rentARefReady ? "" : "disabled"}
+          title="${rentARefReady ? "Rent-a-Ref can make a call." : "Rent-a-Ref already made the latest call. New comment needed."}"
+        >
+          Rent-a-Ref
+        </button>
       </div>
 
       <div class="chirp-profile-wrap">
@@ -1014,6 +1008,7 @@ function renderPosts(posts) {
             `
             : `
               <p class="muted small">Comments are disabled for this post.</p>
+              <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
             `
         }
       </div>
