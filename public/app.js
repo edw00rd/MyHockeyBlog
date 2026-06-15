@@ -963,9 +963,9 @@ function renderPosts(posts) {
         ${renderChirpPicker({
           contentType: "post",
           contentId: post.id,
-          chirpCount
+          chirpCount,
+          selectedChirpType: post.user_chirp_type || ""
         })}
-
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
@@ -1614,7 +1614,8 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
                 : renderChirpPicker({
                     contentType: "comment",
                     contentId: comment.id,
-                    chirpCount
+                    chirpCount,
+                    selectedChirpType: comment.user_chirp_type || ""
                   })
             }
           
@@ -1878,12 +1879,13 @@ function renderChirpPicker({
   contentType,
   contentId,
   chirpCount = 0,
+  selectedChirpType = "",
   disabled = false
 }) {
   const optionsHtml = CHIRP_OPTIONS.map((option) => `
     <button
       type="button"
-      class="chirp-option"
+      class="chirp-option ${option.type === selectedChirpType ? "selected" : ""}"
       data-chirp-value="${option.value}"
       data-chirp-type="${escapeHtml(option.type)}"
       data-content-type="${escapeHtml(contentType)}"
