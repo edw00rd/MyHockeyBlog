@@ -1020,7 +1020,6 @@ function renderPosts(posts) {
   }
 
   wireCommentControls();
-  wireChirpControls();
   wireChirpPickerControls();
   wireRentARefControls();
   wireModerationControls();
@@ -1314,7 +1313,6 @@ function renderComments(postId, comments, commentsEnabled = true) {
   `;
 
     wireCommentVoteControls();
-    wireChirpControls();
     wireChirpPickerControls();
     wireRentARefCommentControls();
     wireReplyControls();
@@ -2168,105 +2166,6 @@ function renderChirpProfile(profile) {
       </div>
     </div>
   `;
-}
-
-function getChirpType() {
-  const choice = window.prompt(
-    [
-      "What kind of chirp is this?",
-      "",
-      "1 = Good Chirp — funny hockey banter",
-      "2 = Tape-to-Tape — useful feedback that lands clean",
-      "3 = Spicy but Fair — hot, but still in bounds",
-      "4 = Tone Check — drifting into cheap-shot territory",
-      "5 = Cheap Shot — personal or disrespectful",
-      "6 = Gongshow — spam, trolling, or noise",
-      "",
-      "Enter 1-6:"
-    ].join("\n"),
-    "1"
-  );
-
-  if (choice === null) return null;
-
-  const types = {
-    "1": "good_chirp",
-    "2": "tape_to_tape",
-    "3": "spicy_but_fair",
-    "4": "tone_check",
-    "5": "cheap_shot",
-    "6": "gongshow"
-  };
-
-  return types[String(choice).trim()] || "other";
-}
-
-async function chirpContent(contentType, contentId) {
-  const chirpType = getChirpType();
-
-  if (!chirpType) return null;
-
-  return fetchJson("/api/chirps", {
-    method: "POST",
-    body: JSON.stringify({
-      content_type: contentType,
-      content_id: contentId,
-      chirp_type: chirpType
-    })
-  });
-}
-
-function updateChirpButton(button, result) {
-  if (!button || !result) return;
-
-  const count = Number(result.chirp_count || 0);
-  const userChirped = Boolean(result.user_chirped);
-  const label = getChirpProfileLabel(result);
-
-  button.classList.toggle("active", userChirped);
-  button.textContent = userChirped ? `Chirped (${count})` : `Chirp this (${count})`;
-
-  const card = button.closest(".post-card, .comment-card");
-  const badgeTarget = card?.querySelector(".chirp-badge");
-  const profileTarget = card?.querySelector(".chirp-profile-wrap");
-
-  if (badgeTarget) {
-    badgeTarget.textContent = label;
-    badgeTarget.hidden = !label;
-  }
-
-  if (profileTarget) {
-    profileTarget.innerHTML = renderChirpProfile(result);
-  }
-}
-
-function wireChirpControls() {
-  document.querySelectorAll(".chirp-button").forEach((button) => {
-    if (button.dataset.wired) return;
-    button.dataset.wired = "true";
-
-    button.addEventListener("click", async () => {
-      const contentType = button.dataset.contentType;
-      const contentId = button.dataset.contentId;
-
-      if (!contentType || !contentId) return;
-
-      try {
-        button.disabled = true;
-
-        const result = await chirpContent(contentType, contentId);
-
-        if (result) {
-          updateChirpButton(button, result);
-        }
-      } catch (error) {
-        alert(`Could not chirp this: ${error.message}`);
-        console.error(error);
-      } finally {
-        button.disabled = false;
-      }
-    });
-  });
 }
 
 function wireRentARefCommentControls() {
