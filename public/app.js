@@ -9,6 +9,15 @@ let knownUsers = [];
 
 const $ = (selector) => document.querySelector(selector);
 
+const CHIRP_OPTIONS = [
+  { value: 1, label: "Good Chirp", description: "funny hockey banter" },
+  { value: 2, label: "Tape-to-Tape", description: "useful feedback that lands clean" },
+  { value: 3, label: "Spicy but Fair", description: "hot, but still in bounds" },
+  { value: 4, label: "Tone Check", description: "drifting into cheap-shot territory" },
+  { value: 5, label: "Cheap Shot", description: "personal or disrespectful" },
+  { value: 6, label: "Gongshow", description: "spam, trolling, or noise" }
+];
+
 function getSelectedUserId() {
   return localStorage.getItem(SELECTED_USER_STORAGE_KEY) || "";
 }
@@ -951,14 +960,11 @@ function renderPosts(posts) {
         ${tagsHtml}
 
       <div class="post-meta">
-        <button
-          class="button ghost chirp-button ${userChirped ? "active" : ""}"
-          type="button"
-          data-content-type="post"
-          data-content-id="${escapeHtml(post.id)}"
-        >
-          ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
-        </button>
+        ${renderChirpPicker({
+          contentType: "post",
+          contentId: post.id,
+          chirpCount
+        })}
 
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
@@ -1445,15 +1451,6 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
     ? ""
     : `
       <div class="comment-chirp-row">
-        <button
-          class="button ghost chirp-button ${userChirped ? "active" : ""}"
-          type="button"
-          data-content-type="comment"
-          data-content-id="${escapeHtml(comment.id)}"
-        >
-          ${userChirped ? `Chirped (${chirpCount})` : `Chirp this (${chirpCount})`}
-        </button>
-  
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
@@ -1608,6 +1605,16 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
             >
               [...]
             </button>
+          
+            ${
+              rentARefComment
+                ? ""
+                : renderChirpPicker({
+                    contentType: "comment",
+                    contentId: comment.id,
+                    chirpCount
+                  })
+            }
           
             ${commentVoteControlsHtml}
           </div>
@@ -1863,6 +1870,56 @@ function polarPoint(cx, cy, radius, angleDeg) {
     x: cx + Math.cos(radians) * radius,
     y: cy + Math.sin(radians) * radius
   };
+}
+
+function renderChirpPicker({
+  contentType,
+  contentId,
+  chirpCount = 0,
+  disabled = false
+}) {
+  const optionsHtml = CHIRP_OPTIONS.map((option) => `
+    <button
+      type="button"
+      class="chirp-option"
+      data-chirp-value="${option.value}"
+      data-content-type="${escapeHtml(contentType)}"
+      data-content-id="${escapeHtml(contentId)}"
+    >
+      <span class="chirp-option-number">${option.value}</span>
+      <span class="chirp-option-copy">
+        <span class="chirp-option-label">${escapeHtml(option.label)}</span>
+        <span class="chirp-option-description">${escapeHtml(option.description)}</span>
+      </span>
+    </button>
+  `).join("");
+
+  return `
+    <div class="chirp-picker ${disabled ? "is-disabled" : ""}">
+      <button
+        type="button"
+        class="chirp-picker-trigger"
+        data-content-type="${escapeHtml(contentType)}"
+        data-content-id="${escapeHtml(contentId)}"
+        aria-expanded="false"
+        ${disabled ? "disabled" : ""}
+        title="Pick a chirp"
+      >
+        <span class="chirp-picker-icon">
+          <span class="chirp-bird">🐤</span>
+          <span class="chirp-bubble">!</span>
+        </span>
+      </button>
+
+      <span class="chirp-picker-count">${Number(chirpCount || 0)}</span>
+
+      <div class="chirp-picker-menu" hidden>
+        <div class="chirp-picker-menu-inner">
+          ${optionsHtml}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderChirpRadar(profile) {
