@@ -504,21 +504,21 @@ function renderProfileChirpTone(data) {
   `;
 }
 
-function isRentARefReady(post) {
-  const lastRentARefAt = post.last_rent_a_ref_at || "";
-  const lastNonRefCommentAt = post.last_non_ref_comment_at || "";
+function isRentARefReadyForComment(comment) {
+  if (isRentARefComment(comment)) return false;
+
+  const lastRentARefAt = comment.last_rent_a_ref_at || "";
+  const lastCommentChirpAt = comment.last_comment_chirp_at || "";
 
   if (!lastRentARefAt) return true;
 
-  if (!lastNonRefCommentAt) return false;
+  if (!lastCommentChirpAt) return false;
 
-  return new Date(lastNonRefCommentAt).getTime() >
+  return new Date(lastCommentChirpAt).getTime() >
     new Date(lastRentARefAt).getTime();
 }
 
 function isRentARefReady(post) {
-  if (Number(post.comments_enabled) !== 1) return false;
-
   const lastRentARefAt = post.last_rent_a_ref_at || "";
   const lastNonRefCommentAt = post.last_non_ref_comment_at || "";
 
