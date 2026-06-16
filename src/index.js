@@ -80,13 +80,13 @@ export default {
     const rentARefMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/rent-a-ref$/);
     
     if (rentARefMatch && method === "POST") {
-      return createRentARefComment(env, rentARefMatch[1]);
+      return createRentARefComment(request, env, rentARefMatch[1]);
     }
     
     const rentARefCommentMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/rent-a-ref$/);
     
     if (rentARefCommentMatch && method === "POST") {
-      return createRentARefCommentForComment(env, rentARefCommentMatch[1]);
+      return createRentARefCommentForComment(request, env, rentARefCommentMatch[1]);
     }
     
     if (url.pathname === "/api/reviews" && method === "GET") {
@@ -742,7 +742,32 @@ async function getPosts(request, env) {
             LIMIT 1
           ),
           ''
-        ) AS user_chirp_type
+        ) AS user_chirp_type,
+        
+        COALESCE(
+          (
+            SELECT COALESCE(content_chirps.updated_at, content_chirps.created_at)
+            FROM content_chirps
+            WHERE content_chirps.content_type = 'post'
+              AND content_chirps.content_id = posts.id
+              AND content_chirps.chirped_by_user_id = ?
+              AND content_chirps.status = 'active'
+            LIMIT 1
+          ),
+          ''
+        ) AS user_chirp_at,
+        
+        COALESCE(
+          (
+            SELECT rent_a_ref_calls.called_at
+            FROM rent_a_ref_calls
+            WHERE rent_a_ref_calls.content_type = 'post'
+              AND rent_a_ref_calls.content_id = posts.id
+              AND rent_a_ref_calls.called_by_user_id = ?
+            LIMIT 1
+          ),
+          ''
+        ) AS user_rent_a_ref_called_at
 
       FROM posts
       JOIN users ON users.id = posts.author_user_id
@@ -753,7 +778,14 @@ async function getPosts(request, env) {
       LIMIT 25
       `
     )
-      .bind(RENT_A_REF_USER_ID, RENT_A_REF_USER_ID, currentUser.user_id, currentUser.user_id)
+      .bind(
+        RENT_A_REF_USER_ID,
+        RENT_A_REF_USER_ID,
+        currentUser.user_id,
+        currentUser.user_id,
+        currentUser.user_id,
+        currentUser.user_id
+      )
       .all();
 
     return json({
@@ -1037,6 +1069,31 @@ async function getComments(request, env, postId) {
       
       COALESCE(
         (
+          SELECT COALESCE(content_chirps.updated_at, content_chirps.created_at)
+          FROM content_chirps
+          WHERE content_chirps.content_type = 'comment'
+            AND content_chirps.content_id = comments.id
+            AND content_chirps.chirped_by_user_id = ?
+            AND content_chirps.status = 'active'
+          LIMIT 1
+        ),
+        ''
+      ) AS user_chirp_at,
+      
+      COALESCE(
+        (
+          SELECT rent_a_ref_calls.called_at
+          FROM rent_a_ref_calls
+          WHERE rent_a_ref_calls.content_type = 'comment'
+            AND rent_a_ref_calls.content_id = comments.id
+            AND rent_a_ref_calls.called_by_user_id = ?
+          LIMIT 1
+        ),
+        ''
+      ) AS user_rent_a_ref_called_at,
+      
+      COALESCE(
+        (
           SELECT MAX(ref_comments.created_at)
           FROM comments AS ref_comments
           WHERE ref_comments.parent_comment_id = comments.id
@@ -1066,7 +1123,15 @@ async function getComments(request, env, postId) {
       LIMIT 100
       `
     )
-      .bind(currentUser.user_id, currentUser.user_id, currentUser.user_id, RENT_A_REF_USER_ID, postId)
+      .bind(
+        currentUser.user_id,
+        currentUser.user_id,
+        currentUser.user_id,
+        currentUser.user_id,
+        currentUser.user_id,
+        RENT_A_REF_USER_ID,
+        postId
+      )
       .all();
 
     return json({
@@ -1493,7 +1558,7 @@ async function createChirp(request, env) {
 
     const existing = await env.DB.prepare(
       `
-      SELECT id, status
+      SELECT id, status, chirp_type
       FROM content_chirps
       WHERE content_type = ?
         AND content_id = ?
@@ -1506,7 +1571,11 @@ async function createChirp(request, env) {
 
     let userChirped = true;
 
-    if (existing && existing.status === "active") {
+    if (
+      existing &&
+      existing.status === "active" &&
+      existing.chirp_type === safeChirpType
+    ) {
       await env.DB.prepare(
         `
         UPDATE content_chirps
@@ -1517,7 +1586,7 @@ async function createChirp(request, env) {
       )
         .bind(now, existing.id)
         .run();
-
+    
       userChirped = false;
     } else if (existing) {
       await env.DB.prepare(
@@ -1793,7 +1862,109 @@ function getChirpStatus(chirpCount) {
   return "normal";
 }
 
-async function createRentARefCommentForComment(env, commentId) {
+async function getUserRentARefReadiness(env, contentType, contentId, userId) {
+  const chirp = await env.DB.prepare(
+    `
+    SELECT
+      id,
+      COALESCE(updated_at, created_at) AS chirped_at
+    FROM content_chirps
+    WHERE content_type = ?
+      AND content_id = ?
+      AND chirped_by_user_id = ?
+      AND status = 'active'
+    LIMIT 1
+    `
+  )
+    .bind(contentType, contentId, userId)
+    .first();
+
+  if (!chirp) {
+    return {
+      ready: false,
+      reason: "chirp_required",
+      message: "Chirp this first, then Rent-a-Ref can make a call."
+    };
+  }
+
+  const lastCall = await env.DB.prepare(
+    `
+    SELECT called_at
+    FROM rent_a_ref_calls
+    WHERE content_type = ?
+      AND content_id = ?
+      AND called_by_user_id = ?
+    LIMIT 1
+    `
+  )
+    .bind(contentType, contentId, userId)
+    .first();
+
+  if (!lastCall) {
+    return {
+      ready: true,
+      reason: "ready",
+      chirped_at: chirp.chirped_at,
+      called_at: ""
+    };
+  }
+
+  const ready =
+    new Date(chirp.chirped_at).getTime() >
+    new Date(lastCall.called_at).getTime();
+
+  return {
+    ready,
+    reason: ready ? "ready" : "already_called",
+    message: ready
+      ? "Rent-a-Ref can make a call."
+      : "You already called Rent-a-Ref for your latest chirp.",
+    chirped_at: chirp.chirped_at,
+    called_at: lastCall.called_at
+  };
+}
+
+async function recordUserRentARefCall(env, {
+  contentType,
+  contentId,
+  calledByUserId,
+  rentARefCommentId,
+  now
+}) {
+  await env.DB.prepare(
+    `
+    INSERT INTO rent_a_ref_calls (
+      id,
+      content_type,
+      content_id,
+      called_by_user_id,
+      rent_a_ref_comment_id,
+      called_at,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(content_type, content_id, called_by_user_id)
+    DO UPDATE SET
+      rent_a_ref_comment_id = excluded.rent_a_ref_comment_id,
+      called_at = excluded.called_at,
+      updated_at = excluded.updated_at
+    `
+  )
+    .bind(
+      crypto.randomUUID(),
+      contentType,
+      contentId,
+      calledByUserId,
+      rentARefCommentId,
+      now,
+      now,
+      now
+    )
+    .run();
+}
+
+async function createRentARefCommentForComment(request, env, commentId) {
   try {
     const targetComment = await env.DB.prepare(
       `
@@ -1843,78 +2014,28 @@ async function createRentARefCommentForComment(env, commentId) {
       );
     }
 
-    if (Number(targetComment.comments_enabled) !== 1) {
+    const now = new Date().toISOString();
+    const currentUser = await getCurrentUser(request, env);
+    
+    await ensureRentARefAuthor(env, now);
+    
+    const rentARefReadiness = await getUserRentARefReadiness(
+      env,
+      "comment",
+      commentId,
+      currentUser.user_id
+    );
+    
+    if (!rentARefReadiness.ready) {
       return json(
         {
           ok: false,
-          error: "Rent-a-Ref cannot comment because comments are disabled for this post."
+          error: rentARefReadiness.message || "Rent-a-Ref is not ready for this user.",
+          reason: rentARefReadiness.reason,
+          rent_a_ref_ready: false
         },
         403
       );
-    }
-
-    const now = new Date().toISOString();
-
-    await ensureRentARefAuthor(env, now);
-
-    const latestRentARefComment = await env.DB.prepare(
-      `
-      SELECT id, created_at
-      FROM comments
-      WHERE post_id = ?
-        AND parent_comment_id = ?
-        AND author_user_id = ?
-        AND status = 'visible'
-      ORDER BY created_at DESC
-      LIMIT 1
-      `
-    )
-      .bind(targetComment.post_id, commentId, RENT_A_REF_USER_ID)
-      .first();
-
-    const latestCommentChirp = await env.DB.prepare(
-      `
-      SELECT
-        id,
-        COALESCE(updated_at, created_at) AS chirped_at
-      FROM content_chirps
-      WHERE content_type = 'comment'
-        AND content_id = ?
-        AND status = 'active'
-      ORDER BY COALESCE(updated_at, created_at) DESC
-      LIMIT 1
-      `
-    )
-      .bind(commentId)
-      .first();
-
-    const hasNewChirpSinceLastCall =
-      !latestRentARefComment ||
-      (
-        latestCommentChirp &&
-        new Date(latestCommentChirp.chirped_at).getTime() >
-          new Date(latestRentARefComment.created_at).getTime()
-      );
-
-    const countRowBefore = await env.DB.prepare(
-      `
-      SELECT COUNT(*) AS comment_count
-      FROM comments
-      WHERE post_id = ?
-        AND status = 'visible'
-      `
-    )
-      .bind(targetComment.post_id)
-      .first();
-
-    if (!hasNewChirpSinceLastCall) {
-      return json({
-        ok: true,
-        message: "Rent-a-Ref already made the latest call on this comment. New chirp needed before another call.",
-        already_called: true,
-        rent_a_ref_ready: false,
-        comment_count: Number(countRowBefore?.comment_count || 0)
-      });
     }
 
     const chirpProfile = await getChirpProfile(env, "comment", commentId);
@@ -1994,6 +2115,14 @@ async function createRentARefCommentForComment(env, commentId) {
       )
       .run();
 
+      await recordUserRentARefCall(env, {
+        contentType: "comment",
+        contentId: commentId,
+        calledByUserId: currentUser.user_id,
+        rentARefCommentId: rentARefCommentId,
+        now
+      });
+    
     const countRow = await env.DB.prepare(
       `
       SELECT COUNT(*) AS comment_count
@@ -2042,7 +2171,7 @@ async function createRentARefCommentForComment(env, commentId) {
   }
 }
 
-async function createRentARefComment(env, postId) {
+async function createRentARefComment(request, env, postId) {
   try {
     const post = await env.DB.prepare(
       `
@@ -2053,7 +2182,9 @@ async function createRentARefComment(env, postId) {
         post_type,
         comments_enabled,
         visibility,
-        status
+        status,
+        COALESCE(moderation_status, 'visible') AS moderation_status,
+        COALESCE(moderation_reason, '') AS moderation_reason
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
@@ -2075,70 +2206,27 @@ async function createRentARefComment(env, postId) {
     }
 
     const now = new Date().toISOString();
-
+    const currentUser = await getCurrentUser(request, env);
+    
     await ensureRentARefAuthor(env, now);
-
-    const latestRentARefComment = await env.DB.prepare(
-      `
-      SELECT
-        id,
-        created_at
-      FROM comments
-      WHERE post_id = ?
-        AND author_user_id = ?
-        AND status = 'visible'
-      ORDER BY created_at DESC
-      LIMIT 1
-      `
-    )
-      .bind(postId, RENT_A_REF_USER_ID)
-      .first();
-
-    const latestNonRefComment = await env.DB.prepare(
-      `
-      SELECT
-        id,
-        created_at
-      FROM comments
-      WHERE post_id = ?
-        AND author_user_id <> ?
-        AND status = 'visible'
-      ORDER BY created_at DESC
-      LIMIT 1
-      `
-    )
-      .bind(postId, RENT_A_REF_USER_ID)
-      .first();
-
-    const rentARefAlreadyCalled = Boolean(latestRentARefComment);
-
-    const hasNewCommentSinceLastCall =
-      !latestRentARefComment ||
-      (
-        latestNonRefComment &&
-        new Date(latestNonRefComment.created_at).getTime() >
-          new Date(latestRentARefComment.created_at).getTime()
+    
+    const rentARefReadiness = await getUserRentARefReadiness(
+      env,
+      "post",
+      postId,
+      currentUser.user_id
+    );
+    
+    if (!rentARefReadiness.ready) {
+      return json(
+        {
+          ok: false,
+          error: rentARefReadiness.message || "Rent-a-Ref is not ready for this user.",
+          reason: rentARefReadiness.reason,
+          rent_a_ref_ready: false
+        },
+        403
       );
-
-    const countRowBefore = await env.DB.prepare(
-      `
-      SELECT COUNT(*) AS comment_count
-      FROM comments
-      WHERE post_id = ?
-        AND status = 'visible'
-      `
-    )
-      .bind(postId)
-      .first();
-
-    if (!hasNewCommentSinceLastCall) {
-      return json({
-        ok: true,
-        message: "Rent-a-Ref already made the latest call. New comment needed before another call.",
-        already_called: rentARefAlreadyCalled,
-        rent_a_ref_ready: false,
-        comment_count: Number(countRowBefore?.comment_count || 0)
-      });
     }
 
     const chirpProfile = await getChirpProfile(env, "post", postId);
@@ -2218,6 +2306,14 @@ async function createRentARefComment(env, postId) {
       )
       .run();
 
+    await recordUserRentARefCall(env, {
+      contentType: "post",
+      contentId: postId,
+      calledByUserId: currentUser.user_id,
+      rentARefCommentId: commentId,
+      now
+    });
+    
     const countRow = await env.DB.prepare(
       `
       SELECT COUNT(*) AS comment_count
@@ -2489,7 +2585,13 @@ function getRentARefModerationDecision(content, chirpProfile) {
   const targeted = Number(chirpProfile.targeted_score || 0);
   const spam = Number(chirpProfile.spam_score || 0);
 
-  const hasExternalRisk = contentHasLinkOrMedia(content);
+  const wasClearedBySituationRoom =
+    String(content.moderation_status || "visible") === "visible" &&
+    String(content.moderation_reason || "") === "review_unbenched";
+  
+  const hasExternalRisk =
+    !wasClearedBySituationRoom &&
+    contentHasLinkOrMedia(content);
 
   const isGongshow = spam >= 4 || status === "gongshow";
   const isCheapShot = rude >= 4 || status === "cheap_shot";
