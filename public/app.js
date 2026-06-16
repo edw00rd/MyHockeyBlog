@@ -504,30 +504,47 @@ function renderProfileChirpTone(data) {
   `;
 }
 
+function hasCurrentUserChirpedContent(content) {
+  return (
+    Number(content.user_chirped || 0) === 1 ||
+    Boolean(content.user_chirp_type)
+  );
+}
+
+function isRentARefReadyForCurrentUser(content) {
+  if (!hasCurrentUserChirpedContent(content)) return false;
+
+  const userChirpAt = content.user_chirp_at || "";
+  const userRentARefCalledAt = content.user_rent_a_ref_called_at || "";
+
+  if (!userRentARefCalledAt) return true;
+
+  if (!userChirpAt) return false;
+
+  return new Date(userChirpAt).getTime() >
+    new Date(userRentARefCalledAt).getTime();
+}
+
 function isRentARefReadyForComment(comment) {
   if (isRentARefComment(comment)) return false;
 
-  const lastRentARefAt = comment.last_rent_a_ref_at || "";
-  const lastCommentChirpAt = comment.last_comment_chirp_at || "";
-
-  if (!lastRentARefAt) return true;
-
-  if (!lastCommentChirpAt) return false;
-
-  return new Date(lastCommentChirpAt).getTime() >
-    new Date(lastRentARefAt).getTime();
+  return isRentARefReadyForCurrentUser(comment);
 }
 
 function isRentARefReady(post) {
-  const lastRentARefAt = post.last_rent_a_ref_at || "";
-  const lastNonRefCommentAt = post.last_non_ref_comment_at || "";
+  return isRentARefReadyForCurrentUser(post);
+}
 
-  if (!lastRentARefAt) return true;
+function getRentARefTitle(content) {
+  if (!hasCurrentUserChirpedContent(content)) {
+    return "Chirp this first, then Rent-a-Ref can make a call.";
+  }
 
-  if (!lastNonRefCommentAt) return false;
+  if (!isRentARefReadyForCurrentUser(content)) {
+    return "You already called Rent-a-Ref for your latest chirp.";
+  }
 
-  return new Date(lastNonRefCommentAt).getTime() >
-    new Date(lastRentARefAt).getTime();
+  return "Rent-a-Ref can make a call.";
 }
 
 function pickRandomLine(lines) {
@@ -972,7 +989,7 @@ function renderPosts(posts) {
           type="button"
           data-post-id="${escapeHtml(post.id)}"
           ${rentARefReady ? "" : "disabled"}
-          title="${rentARefReady ? "Rent-a-Ref can make a call." : "Rent-a-Ref already made the latest call. New comment needed."}"
+          title="${escapeHtml(getRentARefTitle(post))}"
         >
           Rent-a-Ref
         </button>
@@ -1440,7 +1457,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
         type="button"
         data-comment-id="${escapeHtml(comment.id)}"
         ${rentARefReadyForComment ? "" : "disabled"}
-        title="${rentARefReadyForComment ? "Rent-a-Ref can make a call on this comment." : "Rent-a-Ref already made the latest call. New chirp needed."}"
+        title="${escapeHtml(getRentARefTitle(comment))}"
       >
         Rent-a-Ref
       </button>
@@ -2243,7 +2260,7 @@ function wireRentARefControls() {
         if (result.rent_a_ref_ready === false) {
           button.disabled = true;
           button.classList.add("disabled");
-          button.title = "Rent-a-Ref already made the latest call. New comment needed.";
+          button.title = "You already called Rent-a-Ref for your latest chirp.";
         }
 
         if (list) {
