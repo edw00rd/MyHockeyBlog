@@ -108,6 +108,7 @@ async function loadHomepage() {
     renderKarma(karmaData);
     renderLeadership(karmaData);
     renderProfileChirpTone(karmaData);
+    wireChirpProfileToggles();
     renderCommunityVibe(vibeData);
     renderPosts(postsData.posts || []);
     renderSituationRoom(reviewsData.reviews || []);
@@ -500,7 +501,7 @@ function renderProfileChirpTone(data) {
       <span class="badge chirp-badge">${escapeHtml(label)}</span>
     </div>
 
-    ${renderChirpProfile(profile)}
+    ${renderCollapsibleChirpProfile(profile, "Locker Room Tone")}
   `;
 }
 
@@ -928,21 +929,21 @@ function renderPosts(posts) {
     const commentsStatus = Number(post.comments_enabled) === 1 ? "on" : "off";
     const author = post.author_display_name || post.author_username || "Unknown skater";
     const tagList = String(post.tags || "")
-      .split(",")
-      .map((tag) => tag.trim())
+      .split(/[,\s]+/)
+      .map((tag) => tag.trim().replace(/^#/, ""))
       .filter(Boolean);
 
     const tagsHtml = tagList.length
       ? `<div class="post-meta tags">${tagList
           .map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`)
-          .join("")}</div>`
+          .join(" ")}</div>`
       : "";
 
     const chirpCount = Number(post.chirp_count || 0);
     const userChirped = Number(post.user_chirped || 0) === 1;
     const userRentARefLocked = Boolean(post.user_rent_a_ref_called_at);
     const chirpLabel = getChirpProfileLabel(post);
-    const chirpProfileHtml = renderChirpProfile(post);
+    const chirpProfileHtml = renderCollapsibleChirpProfile(post, "Chirp Profile");
     const rentARefReady = isRentARefReady(post);
     const moderationStatus = String(post.moderation_status || "visible");
     const postIsBoxed = moderationStatus !== "visible";
@@ -1044,6 +1045,7 @@ function renderPosts(posts) {
 
   wireCommentControls();
   wireChirpPickerControls();
+  wireChirpProfileToggles();
   wireRentARefControls();
   wireModerationControls();
 }
@@ -1337,6 +1339,7 @@ function renderComments(postId, comments, commentsEnabled = true) {
 
     wireCommentVoteControls();
     wireChirpPickerControls();
+    wireChirpProfileToggles();
     wireRentARefCommentControls();
     wireReplyControls();
     wireCommentCollapseControls();
@@ -1411,7 +1414,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const userChirped = Number(comment.user_chirped || 0) === 1;
   const userRentARefLocked = Boolean(comment.user_rent_a_ref_called_at);
   const chirpLabel = getChirpProfileLabel(comment);
-  const chirpProfileHtml = renderChirpProfile(comment);
+  const chirpProfileHtml = renderCollapsibleChirpProfile(comment, "Chirp Profile");
 
   const rentARefComment = isRentARefComment(comment);
   const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
@@ -1897,6 +1900,28 @@ function polarPoint(cx, cy, radius, angleDeg) {
   };
 }
 
+function renderCollapsibleChirpProfile(profile, label = "Chirp Profile") {
+  const chirpCount = Number(profile?.chirp_count || 0);
+
+  if (!chirpCount) {
+    return "";
+  }
+
+  return `
+    <section class="chirp-profile-shell" data-chirp-profile>
+      <button class="chirp-profile-toggle" type="button" aria-expanded="false">
+        <span class="chirp-profile-toggle-icon">+</span>
+        <span>${escapeHtml(label)}</span>
+        <span class="chirp-profile-toggle-count">${chirpCount}</span>
+      </button>
+
+      <div class="chirp-profile-panel" hidden>
+        ${renderChirpProfile(profile)}
+      </div>
+    </section>
+  `;
+}
+
 function renderChirpPicker({
   contentType,
   contentId,
@@ -2190,6 +2215,39 @@ function renderChirpProfile(profile) {
       </div>
     </div>
   `;
+}
+
+function wireChirpProfileToggles() {
+  document.querySelectorAll(".chirp-profile-toggle").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", () => {
+      const shell = button.closest("[data-chirp-profile]");
+      const panel = shell?.querySelector(".chirp-profile-panel");
+      const icon = button.querySelector(".chirp-profile-toggle-icon");
+
+      if (!panel) return;
+
+      const isOpen = !panel.hasAttribute("hidden");
+
+      if (isOpen) {
+        panel.setAttribute("hidden", "");
+        button.setAttribute("aria-expanded", "false");
+
+        if (icon) {
+          icon.textContent = "+";
+        }
+      } else {
+        panel.removeAttribute("hidden");
+        button.setAttribute("aria-expanded", "true");
+
+        if (icon) {
+          icon.textContent = "−";
+        }
+      }
+    });
+  });
 }
 
 function wireRentARefCommentControls() {
