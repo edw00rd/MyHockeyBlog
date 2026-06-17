@@ -972,10 +972,10 @@ function renderPosts(posts) {
 
       <div class="post-meta">
         ${renderChirpPicker({
-          contentType: "comment",
-          contentId: comment.id,
+          contentType: "post",
+          contentId: post.id,
           chirpCount,
-          selectedChirpType: comment.user_chirp_type || "",
+          selectedChirpType: post.user_chirp_type || "",
           disabled: userRentARefLocked
         })}
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
@@ -1640,9 +1640,10 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
                     contentType: "comment",
                     contentId: comment.id,
                     chirpCount,
-                    selectedChirpType: comment.user_chirp_type || ""
+                    selectedChirpType: comment.user_chirp_type || "",
+                    disabled: userRentARefLocked
                   })
-            }
+                              }
           
             ${commentVoteControlsHtml}
           </div>
