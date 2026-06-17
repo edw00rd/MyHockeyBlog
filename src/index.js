@@ -1867,7 +1867,9 @@ async function getUserRentARefReadiness(env, contentType, contentId, userId) {
     `
     SELECT
       id,
-      COALESCE(updated_at, created_at) AS chirped_at
+      chirp_type,
+      created_at,
+      updated_at
     FROM content_chirps
     WHERE content_type = ?
       AND content_id = ?
@@ -1887,7 +1889,7 @@ async function getUserRentARefReadiness(env, contentType, contentId, userId) {
     };
   }
 
-  const lastCall = await env.DB.prepare(
+  const existingCall = await env.DB.prepare(
     `
     SELECT called_at
     FROM rent_a_ref_calls
@@ -1900,27 +1902,22 @@ async function getUserRentARefReadiness(env, contentType, contentId, userId) {
     .bind(contentType, contentId, userId)
     .first();
 
-  if (!lastCall) {
+  if (existingCall) {
     return {
-      ready: true,
-      reason: "ready",
-      chirped_at: chirp.chirped_at,
-      called_at: ""
+      ready: false,
+      reason: "already_called",
+      message: "You already called Rent-a-Ref on this one.",
+      chirped_at: chirp.created_at,
+      called_at: existingCall.called_at
     };
   }
 
-  const ready =
-    new Date(chirp.chirped_at).getTime() >
-    new Date(lastCall.called_at).getTime();
-
   return {
-    ready,
-    reason: ready ? "ready" : "already_called",
-    message: ready
-      ? "Rent-a-Ref can make a call."
-      : "You already called Rent-a-Ref for your latest chirp.",
-    chirped_at: chirp.chirped_at,
-    called_at: lastCall.called_at
+    ready: true,
+    reason: "ready",
+    message: "Rent-a-Ref can make a call.",
+    chirped_at: chirp.created_at,
+    called_at: ""
   };
 }
 
