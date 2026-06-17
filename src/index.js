@@ -1545,7 +1545,7 @@ async function createChirp(request, env) {
     const currentUser = await getCurrentUser(request, env);
 
     const contentExists = await verifyChirpContentExists(env, contentType, contentId);
-
+    
     if (!contentExists) {
       return json(
         {
@@ -1555,7 +1555,30 @@ async function createChirp(request, env) {
         404
       );
     }
-
+    
+    const existingRentARefCall = await env.DB.prepare(
+      `
+      SELECT id
+      FROM rent_a_ref_calls
+      WHERE content_type = ?
+        AND content_id = ?
+        AND called_by_user_id = ?
+      LIMIT 1
+      `
+    )
+      .bind(contentType, contentId, currentUser.user_id)
+      .first();
+    
+    if (existingRentARefCall) {
+      return json(
+        {
+          ok: false,
+          error: "Your chirp is locked after Rent-a-Ref has made the call."
+        },
+        403
+      );
+    }
+    
     const existing = await env.DB.prepare(
       `
       SELECT id, status, chirp_type
