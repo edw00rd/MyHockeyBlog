@@ -4197,7 +4197,7 @@ function parseTags(rawTags) {
   const seenSlugs = new Set();
   const parsedTags = [];
 
-  for (const item of value.split(",")) {
+  for (const item of value.split(/[,\s]+/)) {
     const name = item
       .trim()
       .replace(/^#/, "")
