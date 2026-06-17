@@ -514,15 +514,9 @@ function hasCurrentUserChirpedContent(content) {
 function isRentARefReadyForCurrentUser(content) {
   if (!hasCurrentUserChirpedContent(content)) return false;
 
-  const userChirpAt = content.user_chirp_at || "";
   const userRentARefCalledAt = content.user_rent_a_ref_called_at || "";
 
-  if (!userRentARefCalledAt) return true;
-
-  if (!userChirpAt) return false;
-
-  return new Date(userChirpAt).getTime() >
-    new Date(userRentARefCalledAt).getTime();
+  return !userRentARefCalledAt;
 }
 
 function isRentARefReadyForComment(comment) {
@@ -541,7 +535,7 @@ function getRentARefTitle(content) {
   }
 
   if (!isRentARefReadyForCurrentUser(content)) {
-    return "You already called Rent-a-Ref for your latest chirp.";
+    return "You already called Rent-a-Ref on this one.";
   }
 
   return "Rent-a-Ref can make a call.";
