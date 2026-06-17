@@ -1942,3 +1942,48 @@ textarea:focus {
 .comment-card.is-chirp-menu-open {
   z-index: 500;
 }
+
+.chirp-profile-shell {
+  margin-top: 0.65rem;
+}
+
+.chirp-profile-toggle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.chirp-profile-toggle:hover {
+  border-color: rgba(0, 220, 255, 0.35);
+  background: rgba(0, 220, 255, 0.08);
+}
+
+.chirp-profile-toggle-icon,
+.chirp-profile-toggle-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 230, 0, 0.14);
+  color: #ffe600;
+  font-size: 0.8rem;
+}
+
+.chirp-profile-panel[hidden] {
+  display: none !important;
+}
+
+.chirp-profile-panel {
+  margin-top: 0.65rem;
+}
