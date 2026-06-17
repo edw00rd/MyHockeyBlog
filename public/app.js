@@ -940,6 +940,7 @@ function renderPosts(posts) {
 
     const chirpCount = Number(post.chirp_count || 0);
     const userChirped = Number(post.user_chirped || 0) === 1;
+    const userRentARefLocked = Boolean(post.user_rent_a_ref_called_at);
     const chirpLabel = getChirpProfileLabel(post);
     const chirpProfileHtml = renderChirpProfile(post);
     const rentARefReady = isRentARefReady(post);
@@ -970,10 +971,11 @@ function renderPosts(posts) {
 
       <div class="post-meta">
         ${renderChirpPicker({
-          contentType: "post",
-          contentId: post.id,
+          contentType: "comment",
+          contentId: comment.id,
           chirpCount,
-          selectedChirpType: post.user_chirp_type || ""
+          selectedChirpType: comment.user_chirp_type || "",
+          disabled: userRentARefLocked
         })}
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
@@ -1019,6 +1021,17 @@ function renderPosts(posts) {
             `
             : `
               <p class="muted small">Comments are disabled for this post.</p>
+      
+              ${
+                Number(post.comment_count || 0) > 0
+                  ? `
+                    <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
+                      Rent-a-Ref Calls (${Number(post.comment_count || 0)})
+                    </button>
+                  `
+                  : ""
+              }
+      
               <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
             `
         }
@@ -1396,6 +1409,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const userVote = Number(comment.user_vote || 0);
   const chirpCount = Number(comment.chirp_count || 0);
   const userChirped = Number(comment.user_chirped || 0) === 1;
+  const userRentARefLocked = Boolean(comment.user_rent_a_ref_called_at);
   const chirpLabel = getChirpProfileLabel(comment);
   const chirpProfileHtml = renderChirpProfile(comment);
 
