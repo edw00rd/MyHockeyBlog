@@ -1009,19 +1009,9 @@ function renderPosts(posts) {
               </form>
             `
             : `
-              <p class="muted small">Comments are disabled for this post.</p>
-      
-              ${
-                Number(post.comment_count || 0) > 0
-                  ? `
-                    <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
-                      Rent-a-Ref Calls (${Number(post.comment_count || 0)})
-                    </button>
-                  `
-                  : ""
-              }
-      
-              <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
+              <p class="muted small">
+                Comments are disabled for this post. Rent-a-Ref rulings appear in the Chirp Profile above.
+              </p>
             `
         }
       </div>
