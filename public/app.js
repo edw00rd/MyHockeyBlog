@@ -941,10 +941,8 @@ function renderPosts(posts) {
 
     const chirpCount = Number(post.chirp_count || 0);
     const userChirped = Number(post.user_chirped || 0) === 1;
-    const userRentARefLocked = Boolean(post.user_rent_a_ref_called_at);
     const chirpLabel = getChirpProfileLabel(post);
     const chirpProfileHtml = renderCollapsibleChirpProfile(post, "Chirp Profile");
-    const rentARefReady = isRentARefReady(post);
     const moderationStatus = String(post.moderation_status || "visible");
     const postIsBoxed = moderationStatus !== "visible";
     const moderationBannerHtml = renderModerationBanner(post, "post");
@@ -975,21 +973,11 @@ function renderPosts(posts) {
           contentType: "post",
           contentId: post.id,
           chirpCount,
-          selectedChirpType: post.user_chirp_type || "",
-          disabled: userRentARefLocked
+          selectedChirpType: post.user_chirp_type || ""
         })}
         <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
           ${escapeHtml(chirpLabel)}
         </span>
-        <button
-          class="button ghost rent-a-ref-button ${rentARefReady ? "" : "disabled"}"
-          type="button"
-          data-post-id="${escapeHtml(post.id)}"
-          ${rentARefReady ? "" : "disabled"}
-          title="${escapeHtml(getRentARefTitle(post))}"
-        >
-          Rent-a-Ref
-        </button>
       </div>
 
       <div class="chirp-profile-wrap">
@@ -1046,7 +1034,6 @@ function renderPosts(posts) {
   wireCommentControls();
   wireChirpPickerControls();
   wireChirpProfileToggles();
-  wireRentARefControls();
   wireModerationControls();
 }
 
@@ -1340,7 +1327,6 @@ function renderComments(postId, comments, commentsEnabled = true) {
     wireCommentVoteControls();
     wireChirpPickerControls();
     wireChirpProfileToggles();
-    wireRentARefCommentControls();
     wireReplyControls();
     wireCommentCollapseControls();
     wireCommentBodyControls();
@@ -1412,14 +1398,12 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const userVote = Number(comment.user_vote || 0);
   const chirpCount = Number(comment.chirp_count || 0);
   const userChirped = Number(comment.user_chirped || 0) === 1;
-  const userRentARefLocked = Boolean(comment.user_rent_a_ref_called_at);
   const chirpLabel = getChirpProfileLabel(comment);
   const chirpProfileHtml = renderCollapsibleChirpProfile(comment, "Chirp Profile");
 
   const rentARefComment = isRentARefComment(comment);
   const rentARefClass = rentARefComment ? getRentARefCommentClass(comment) : "";
-  const rentARefReadyForComment = isRentARefReadyForComment(comment);
-
+  
   const moderationStatus = String(comment.moderation_status || "visible");
   const commentIsBoxed = !rentARefComment && moderationStatus !== "visible";
   const moderationBannerHtml = !rentARefComment
@@ -1460,20 +1444,6 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
       </div>
     `;
 
-  const rentARefButtonHtml = rentARefComment
-    ? ""
-    : `
-      <button
-        class="button ghost rent-a-ref-button comment-rent-a-ref-action ${rentARefReadyForComment ? "" : "disabled"}"
-        type="button"
-        data-comment-id="${escapeHtml(comment.id)}"
-        ${rentARefReadyForComment ? "" : "disabled"}
-        title="${escapeHtml(getRentARefTitle(comment))}"
-      >
-        Rent-a-Ref
-      </button>
-    `;
-  
   const commentChirpControlsHtml = rentARefComment
     ? ""
     : `
@@ -1500,8 +1470,6 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
           >
             Reply
           </button>
-  
-          ${rentARefButtonHtml}
         </div>
   
         <form
@@ -1640,8 +1608,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
                     contentType: "comment",
                     contentId: comment.id,
                     chirpCount,
-                    selectedChirpType: comment.user_chirp_type || "",
-                    disabled: userRentARefLocked
+                    selectedChirpType: comment.user_chirp_type || ""
                   })
                               }
           
@@ -1940,6 +1907,7 @@ function renderChirpPicker({
       data-content-id="${escapeHtml(contentId)}"
     >
       <span class="chirp-option-number">${option.value}</span>
+
       <span class="chirp-option-copy">
         <span class="chirp-option-label">${escapeHtml(option.label)}</span>
         <span class="chirp-option-description">${escapeHtml(option.description)}</span>
@@ -1948,26 +1916,40 @@ function renderChirpPicker({
   `).join("");
 
   return `
-    <div class="chirp-picker ${disabled ? "is-disabled" : ""}">
+    <div class="chirp-picker chirp-console ${disabled ? "is-disabled" : ""}">
       <button
         type="button"
-        class="chirp-picker-trigger"
+        class="chirp-picker-trigger chirp-console-trigger"
         data-content-type="${escapeHtml(contentType)}"
         data-content-id="${escapeHtml(contentId)}"
         aria-expanded="false"
         ${disabled ? "disabled" : ""}
-        title="Pick a chirp"
+        title="Open Chirp Console"
       >
-        <span class="chirp-picker-icon">
+        <span class="chirp-console-trigger-icon">
           <span class="chirp-bird">🐤</span>
           <span class="chirp-bubble">!</span>
         </span>
+
+        <span class="chirp-console-trigger-copy">
+          <strong>Chirp Console</strong>
+          <small>${Number(chirpCount || 0)} active chirp${Number(chirpCount || 0) === 1 ? "" : "s"}</small>
+        </span>
+
+        <span class="chirp-console-chevron">⌄</span>
       </button>
 
-      <span class="chirp-picker-count">${Number(chirpCount || 0)}</span>
+      <div class="chirp-picker-menu chirp-console-menu" hidden>
+        <div class="chirp-console-header">
+          <div>
+            <p>Chirp Console</p>
+            <strong>Classify the play</strong>
+          </div>
 
-      <div class="chirp-picker-menu" hidden>
-        <div class="chirp-picker-menu-inner">
+          <span>${Number(chirpCount || 0)} total</span>
+        </div>
+
+        <div class="chirp-picker-menu-inner chirp-console-options">
           ${optionsHtml}
         </div>
       </div>
@@ -2186,6 +2168,92 @@ function renderChirpRadar(profile) {
   `;
 }
 
+function getStableRefImage(seed = "") {
+  let hash = 0;
+
+  for (const character of String(seed)) {
+    hash = ((hash << 5) - hash) + character.charCodeAt(0);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % 2 === 0
+    ? "ref-img1.png"
+    : "ref-img2.png";
+}
+
+function getRentARefAvatarKey(content = {}) {
+  const savedKey = String(content.rent_a_ref_avatar_key || "").trim();
+
+  if (savedKey) {
+    return savedKey;
+  }
+
+  const ruling = String(content.rent_a_ref_ruling || "");
+
+  if (ruling === "under_review") return "ref-img3.png";
+  if (ruling === "penalty") return "ref-img4.png";
+
+  const reason = String(content.moderation_reason || "");
+
+  if (reason.includes("under_review")) return "ref-img3.png";
+  if (reason.includes("penalty") || reason.includes("red")) return "ref-img4.png";
+
+  return getStableRefImage(content.id || content.content_id || "");
+}
+
+function renderRentARefAvatar(content = {}, extraClass = "") {
+  const imageName = getRentARefAvatarKey(content);
+
+  return `
+    <span class="rent-a-ref-avatar ${escapeHtml(extraClass)}">
+      <img
+        src="/${escapeHtml(imageName)}"
+        alt=""
+        loading="lazy"
+        onerror="this.hidden = true; this.nextElementSibling.hidden = false;"
+      />
+      <span class="rent-a-ref-avatar-fallback" hidden aria-hidden="true">🦓</span>
+    </span>
+  `;
+}
+
+function getRentARefRulingLabel(ruling = "play_on") {
+  const labels = {
+    play_on: "Play On",
+    tone_check: "Tone Check",
+    under_review: "Under Review",
+    penalty: "Sent to the Box"
+  };
+
+  return labels[ruling] || "Play On";
+}
+
+function renderRentARefConsole(profile = {}) {
+  if (!Object.prototype.hasOwnProperty.call(profile, "rent_a_ref_ruling")) {
+    return "";
+  }
+
+  const ruling = String(profile.rent_a_ref_ruling || "play_on");
+  const message = String(profile.rent_a_ref_message || "").trim() ||
+    "The crew is monitoring the Chirp Profile.";
+
+  return `
+    <section class="rent-a-ref-console" data-ruling="${escapeHtml(ruling)}">
+      ${renderRentARefAvatar(profile, "rent-a-ref-console-avatar")}
+
+      <div class="rent-a-ref-console-copy">
+        <p class="rent-a-ref-console-kicker">Rent-a-Ref Crew</p>
+        <h4>${escapeHtml(getRentARefRulingLabel(ruling))}</h4>
+        <p>${escapeHtml(message)}</p>
+      </div>
+
+      <span class="rent-a-ref-console-state">
+        Auto ruling
+      </span>
+    </section>
+  `;
+}
+
 function renderChirpProfile(profile) {
   const chirpCount = Number(profile.chirp_count || 0);
 
@@ -2193,8 +2261,22 @@ function renderChirpProfile(profile) {
 
   const axes = getChirpAxisData(profile);
 
+  const getGlow = (value) => {
+    const score = Math.max(0, Math.min(5, Number(value || 0)));
+    return (0.03 + (score / 5) * 0.28).toFixed(3);
+  };
+
+  const heatmapStyle = [
+    `--heat-tape: ${getGlow(profile.helpful_score)}`,
+    `--heat-laughs: ${getGlow(profile.funny_score)}`,
+    `--heat-heat: ${getGlow(profile.heat_score)}`,
+    `--heat-cheap: ${getGlow(profile.rude_score)}`,
+    `--heat-head: ${getGlow(profile.targeted_score)}`,
+    `--heat-gong: ${getGlow(profile.spam_score)}`
+  ].join("; ");
+
   return `
-    <div class="chirp-profile">
+    <div class="chirp-profile chirp-profile-heatmap" style="${heatmapStyle}">
       <p class="muted small">
         <strong>Chirp Profile</strong> · ${chirpCount} chirp${chirpCount === 1 ? "" : "s"}
       </p>
@@ -2204,20 +2286,19 @@ function renderChirpProfile(profile) {
 
         <div class="chirp-profile-grid">
           ${axes
-            .map((axis) => {
-              return `
-                <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
-                  <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
-                </span>
-              `;
-            })
+            .map((axis) => `
+              <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
+                <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
+              </span>
+            `)
             .join("")}
         </div>
       </div>
+
+      ${renderRentARefConsole(profile)}
     </div>
   `;
 }
-
 function wireChirpProfileToggles() {
   document.querySelectorAll(".chirp-profile-toggle").forEach((button) => {
     if (button.dataset.wired) return;
