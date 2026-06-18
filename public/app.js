@@ -941,7 +941,6 @@ function renderPosts(posts) {
 
     const chirpCount = Number(post.chirp_count || 0);
     const userChirped = Number(post.user_chirped || 0) === 1;
-    const chirpLabel = getChirpProfileLabel(post);
     const chirpProfileHtml = renderCollapsibleChirpProfile(post, "Chirp Profile");
     const moderationStatus = String(post.moderation_status || "visible");
     const postIsBoxed = moderationStatus !== "visible";
@@ -975,9 +974,6 @@ function renderPosts(posts) {
           chirpCount,
           selectedChirpType: post.user_chirp_type || ""
         })}
-        <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
-          ${escapeHtml(chirpLabel)}
-        </span>
       </div>
 
       <div class="chirp-profile-wrap">
@@ -1388,7 +1384,6 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const userVote = Number(comment.user_vote || 0);
   const chirpCount = Number(comment.chirp_count || 0);
   const userChirped = Number(comment.user_chirped || 0) === 1;
-  const chirpLabel = getChirpProfileLabel(comment);
   const chirpProfileHtml = renderCollapsibleChirpProfile(comment, "Chirp Profile");
 
   const rentARefComment = isRentARefComment(comment);
@@ -1437,12 +1432,6 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
   const commentChirpControlsHtml = rentARefComment
     ? ""
     : `
-      <div class="comment-chirp-row">
-        <span class="badge chirp-badge" ${chirpLabel ? "" : "hidden"}>
-          ${escapeHtml(chirpLabel)}
-        </span>
-      </div>
-  
       <div class="chirp-profile-wrap">
         ${chirpProfileHtml}
       </div>
