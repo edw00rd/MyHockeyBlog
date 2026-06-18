@@ -76,19 +76,7 @@ export default {
     if (url.pathname === "/api/chirps" && method === "POST") {
       return createChirp(request, env);
     }
-    
-    const rentARefMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/rent-a-ref$/);
-    
-    if (rentARefMatch && method === "POST") {
-      return createRentARefComment(request, env, rentARefMatch[1]);
-    }
-    
-    const rentARefCommentMatch = url.pathname.match(/^\/api\/comments\/([^/]+)\/rent-a-ref$/);
-    
-    if (rentARefCommentMatch && method === "POST") {
-      return createRentARefCommentForComment(request, env, rentARefCommentMatch[1]);
-    }
-    
+  
     if (url.pathname === "/api/reviews" && method === "GET") {
       return getOpenReviews(request, env);
     }
@@ -767,7 +755,40 @@ async function getPosts(request, env) {
             LIMIT 1
           ),
           ''
-        ) AS user_rent_a_ref_called_at
+        ) AS user_rent_a_ref_called_at,
+
+        COALESCE(
+          (
+            SELECT rent_a_ref_rulings.ruling_key
+            FROM rent_a_ref_rulings
+            WHERE rent_a_ref_rulings.content_type = 'post'
+              AND rent_a_ref_rulings.content_id = posts.id
+            LIMIT 1
+          ),
+          'play_on'
+        ) AS rent_a_ref_ruling,
+        
+        COALESCE(
+          (
+            SELECT rent_a_ref_rulings.ruling_message
+            FROM rent_a_ref_rulings
+            WHERE rent_a_ref_rulings.content_type = 'post'
+              AND rent_a_ref_rulings.content_id = posts.id
+            LIMIT 1
+          ),
+          ''
+        ) AS rent_a_ref_message,
+        
+        COALESCE(
+          (
+            SELECT rent_a_ref_rulings.avatar_key
+            FROM rent_a_ref_rulings
+            WHERE rent_a_ref_rulings.content_type = 'post'
+              AND rent_a_ref_rulings.content_id = posts.id
+            LIMIT 1
+          ),
+          ''
+        ) AS rent_a_ref_avatar_key
 
       FROM posts
       JOIN users ON users.id = posts.author_user_id
@@ -1112,7 +1133,40 @@ async function getComments(request, env, postId) {
             AND content_chirps.status = 'active'
         ),
         ''
-      ) AS last_comment_chirp_at
+      ) AS last_comment_chirp_at,
+
+      COALESCE(
+        (
+          SELECT rent_a_ref_rulings.ruling_key
+          FROM rent_a_ref_rulings
+          WHERE rent_a_ref_rulings.content_type = 'comment'
+            AND rent_a_ref_rulings.content_id = comments.id
+          LIMIT 1
+        ),
+        'play_on'
+      ) AS rent_a_ref_ruling,
+      
+      COALESCE(
+        (
+          SELECT rent_a_ref_rulings.ruling_message
+          FROM rent_a_ref_rulings
+          WHERE rent_a_ref_rulings.content_type = 'comment'
+            AND rent_a_ref_rulings.content_id = comments.id
+          LIMIT 1
+        ),
+        ''
+      ) AS rent_a_ref_message,
+      
+      COALESCE(
+        (
+          SELECT rent_a_ref_rulings.avatar_key
+          FROM rent_a_ref_rulings
+          WHERE rent_a_ref_rulings.content_type = 'comment'
+            AND rent_a_ref_rulings.content_id = comments.id
+          LIMIT 1
+        ),
+        ''
+      ) AS rent_a_ref_avatar_key
       
       FROM comments
       LEFT JOIN users ON users.id = comments.author_user_id
@@ -1556,29 +1610,6 @@ async function createChirp(request, env) {
       );
     }
     
-    const existingRentARefCall = await env.DB.prepare(
-      `
-      SELECT id
-      FROM rent_a_ref_calls
-      WHERE content_type = ?
-        AND content_id = ?
-        AND called_by_user_id = ?
-      LIMIT 1
-      `
-    )
-      .bind(contentType, contentId, currentUser.user_id)
-      .first();
-    
-    if (existingRentARefCall) {
-      return json(
-        {
-          ok: false,
-          error: "Your chirp is locked after Rent-a-Ref has made the call."
-        },
-        403
-      );
-    }
-    
     const existing = await env.DB.prepare(
       `
       SELECT id, status, chirp_type
@@ -1689,14 +1720,21 @@ async function createChirp(request, env) {
     }
 
     const chirpProfile = await getChirpProfile(env, contentType, contentId);
-
+    
+    const rentARef = await syncAutomaticRentARef(env, {
+      contentType,
+      contentId,
+      now
+    });
+    
     return json({
       ok: true,
       message: userChirped ? "Content chirped." : "Chirp removed.",
       content_type: contentType,
       content_id: contentId,
       user_chirped: userChirped,
-      ...chirpProfile
+      ...chirpProfile,
+      rent_a_ref: rentARef
     });
   } catch (error) {
     return json(
@@ -1883,6 +1921,331 @@ function getChirpStatus(chirpCount) {
   if (chirpCount >= 5) return "sent_to_the_box";
   if (chirpCount >= 3) return "chirp_watch";
   return "normal";
+}
+
+function getAutomaticRentARefRulingKey(moderationDecision, chirpProfile) {
+  if (moderationDecision.moderation_status === "under_review") {
+    return "under_review";
+  }
+
+  if (moderationDecision.moderation_status === "benched") {
+    return "penalty";
+  }
+
+  const chirpStatus = String(chirpProfile.chirp_status || "normal");
+
+  if (chirpStatus === "tone_check") {
+    return "tone_check";
+  }
+
+  return "play_on";
+}
+
+function getStableRefVariant(seed = "") {
+  let hash = 0;
+
+  for (const character of String(seed)) {
+    hash = ((hash << 5) - hash) + character.charCodeAt(0);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % 2 === 0 ? "ref-img1.png" : "ref-img2.png";
+}
+
+function getRentARefAvatarKey(rulingKey, contentId) {
+  if (rulingKey === "under_review") return "ref-img3.png";
+  if (rulingKey === "penalty") return "ref-img4.png";
+
+  return getStableRefVariant(contentId);
+}
+
+async function getAutomaticRentARefTarget(env, contentType, contentId) {
+  if (contentType === "post") {
+    return env.DB.prepare(
+      `
+      SELECT
+        id,
+        title,
+        body,
+        comments_enabled,
+        COALESCE(moderation_status, 'visible') AS moderation_status,
+        COALESCE(moderation_reason, '') AS moderation_reason
+      FROM posts
+      WHERE id = ?
+        AND visibility = 'public'
+        AND status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(contentId)
+      .first();
+  }
+
+  if (contentType === "comment") {
+    return env.DB.prepare(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.body,
+        posts.comments_enabled,
+        COALESCE(comments.moderation_status, 'visible') AS moderation_status,
+        COALESCE(comments.moderation_reason, '') AS moderation_reason
+      FROM comments
+      JOIN posts ON posts.id = comments.post_id
+      WHERE comments.id = ?
+        AND comments.status = 'visible'
+        AND posts.visibility = 'public'
+        AND posts.status = 'published'
+      LIMIT 1
+      `
+    )
+      .bind(contentId)
+      .first();
+  }
+
+  return null;
+}
+
+async function updateAutomaticModerationState(
+  env,
+  contentType,
+  contentId,
+  moderationDecision,
+  now
+) {
+  if (moderationDecision.moderation_status === "visible") {
+    return;
+  }
+
+  const tableName = contentType === "comment" ? "comments" : "posts";
+
+  await env.DB.prepare(
+    `
+    UPDATE ${tableName}
+    SET moderation_status = ?,
+        moderation_reason = ?,
+        moderated_at = ?,
+        moderated_by_user_id = ?,
+        updated_at = ?
+    WHERE id = ?
+    `
+  )
+    .bind(
+      moderationDecision.moderation_status,
+      moderationDecision.moderation_reason,
+      now,
+      RENT_A_REF_USER_ID,
+      now,
+      contentId
+    )
+    .run();
+}
+
+async function createAutomaticRentARefComment(env, {
+  contentType,
+  target,
+  rulingKey,
+  message,
+  now
+}) {
+  if (Number(target.comments_enabled) !== 1) {
+    return null;
+  }
+
+  await ensureRentARefAuthor(env, now);
+
+  const commentId = crypto.randomUUID();
+  const postId = contentType === "comment" ? target.post_id : target.id;
+  const parentCommentId = contentType === "comment" ? target.id : null;
+
+  await env.DB.prepare(
+    `
+    INSERT INTO comments (
+      id,
+      post_id,
+      author_user_id,
+      parent_comment_id,
+      body,
+      score,
+      status,
+      moderation_status,
+      moderation_reason,
+      moderated_at,
+      moderated_by_user_id,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      commentId,
+      postId,
+      RENT_A_REF_USER_ID,
+      parentCommentId,
+      message,
+      0,
+      "visible",
+      "visible",
+      `rent_a_ref_${rulingKey}`,
+      now,
+      RENT_A_REF_USER_ID,
+      now,
+      now
+    )
+    .run();
+
+  return commentId;
+}
+
+async function syncAutomaticRentARef(env, {
+  contentType,
+  contentId,
+  now
+}) {
+  const target = await getAutomaticRentARefTarget(
+    env,
+    contentType,
+    contentId
+  );
+
+  if (!target) {
+    return null;
+  }
+
+  const chirpProfile = await getChirpProfile(
+    env,
+    contentType,
+    contentId
+  );
+
+  const contentIsLocked =
+    target.moderation_status === "under_review" ||
+    target.moderation_status === "benched";
+
+  let moderationDecision = getRentARefModerationDecision(
+    target,
+    chirpProfile
+  );
+
+  if (contentIsLocked) {
+    moderationDecision = {
+      moderation_status: target.moderation_status,
+      moderation_reason: target.moderation_reason
+    };
+  }
+
+  const rulingKey = getAutomaticRentARefRulingKey(
+    moderationDecision,
+    chirpProfile
+  );
+
+  const existing = await env.DB.prepare(
+    `
+    SELECT
+      id,
+      ruling_key,
+      ruling_message,
+      avatar_key,
+      last_comment_id
+    FROM rent_a_ref_rulings
+    WHERE content_type = ?
+      AND content_id = ?
+    LIMIT 1
+    `
+  )
+    .bind(contentType, contentId)
+    .first();
+
+  const rulingChanged =
+    !existing ||
+    existing.ruling_key !== rulingKey;
+
+  const avatarKey = rulingChanged || !existing?.avatar_key
+    ? getRentARefAvatarKey(rulingKey, contentId)
+    : existing.avatar_key;
+
+  const rulingMessage = rulingChanged || !existing?.ruling_message
+    ? generateRentARefComment(target, chirpProfile, moderationDecision)
+    : existing.ruling_message;
+
+  await updateAutomaticModerationState(
+    env,
+    contentType,
+    contentId,
+    moderationDecision,
+    now
+  );
+
+  if (moderationDecision.moderation_status === "under_review") {
+    await ensureContentReviewCase(env, {
+      contentType,
+      contentId,
+      openedByUserId: RENT_A_REF_USER_ID,
+      openedReason: moderationDecision.moderation_reason,
+      now
+    });
+  }
+
+  let lastCommentId = existing?.last_comment_id || null;
+
+  const shouldCreateSystemComment =
+    rulingChanged &&
+    rulingKey !== "play_on";
+
+  if (shouldCreateSystemComment) {
+    lastCommentId = await createAutomaticRentARefComment(env, {
+      contentType,
+      target,
+      rulingKey,
+      message: rulingMessage,
+      now
+    });
+  }
+
+  await env.DB.prepare(
+    `
+    INSERT INTO rent_a_ref_rulings (
+      id,
+      content_type,
+      content_id,
+      ruling_key,
+      ruling_message,
+      avatar_key,
+      last_comment_id,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(content_type, content_id)
+    DO UPDATE SET
+      ruling_key = excluded.ruling_key,
+      ruling_message = excluded.ruling_message,
+      avatar_key = excluded.avatar_key,
+      last_comment_id = excluded.last_comment_id,
+      updated_at = excluded.updated_at
+    `
+  )
+    .bind(
+      existing?.id || crypto.randomUUID(),
+      contentType,
+      contentId,
+      rulingKey,
+      rulingMessage,
+      avatarKey,
+      lastCommentId,
+      now,
+      now
+    )
+    .run();
+
+  return {
+    ruling_key: rulingKey,
+    ruling_message: rulingMessage,
+    avatar_key: avatarKey,
+    last_comment_id: lastCommentId
+  };
 }
 
 async function getUserRentARefReadiness(env, contentType, contentId, userId) {
