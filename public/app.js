@@ -1538,7 +1538,7 @@ function renderCommentNode(postId, comment, depth = 0, commentsEnabled = true) {
 
   const rentARefHeaderHtml = `
     <div class="comment-card-header-left">
-      <span class="rent-a-ref-zebra" aria-hidden="true">🦓</span>
+      ${renderRentARefAvatar(comment, "rent-a-ref-comment-avatar")}
 
       <div class="comment-card-header-main">
         <div class="comment-card-header-line rent-a-ref-header-line">
