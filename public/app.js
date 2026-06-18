@@ -1916,40 +1916,28 @@ function renderChirpPicker({
   `).join("");
 
   return `
-    <div class="chirp-picker chirp-console ${disabled ? "is-disabled" : ""}">
+    <div class="chirp-picker ${disabled ? "is-disabled" : ""}">
       <button
         type="button"
-        class="chirp-picker-trigger chirp-console-trigger"
+        class="chirp-picker-trigger"
         data-content-type="${escapeHtml(contentType)}"
         data-content-id="${escapeHtml(contentId)}"
         aria-expanded="false"
         ${disabled ? "disabled" : ""}
-        title="Open Chirp Console"
+        title="Open chirp menu"
       >
-        <span class="chirp-console-trigger-icon">
+        <span class="chirp-picker-icon">
           <span class="chirp-bird">🐤</span>
           <span class="chirp-bubble">!</span>
         </span>
-
-        <span class="chirp-console-trigger-copy">
-          <strong>Chirp Console</strong>
-          <small>${Number(chirpCount || 0)} active chirp${Number(chirpCount || 0) === 1 ? "" : "s"}</small>
-        </span>
-
-        <span class="chirp-console-chevron">⌄</span>
       </button>
 
-      <div class="chirp-picker-menu chirp-console-menu" hidden>
-        <div class="chirp-console-header">
-          <div>
-            <p>Chirp Console</p>
-            <strong>Classify the play</strong>
-          </div>
+      <span class="chirp-picker-count">
+        ${Number(chirpCount || 0)}
+      </span>
 
-          <span>${Number(chirpCount || 0)} total</span>
-        </div>
-
-        <div class="chirp-picker-menu-inner chirp-console-options">
+      <div class="chirp-picker-menu" hidden>
+        <div class="chirp-picker-menu-inner">
           ${optionsHtml}
         </div>
       </div>
