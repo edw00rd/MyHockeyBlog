@@ -2261,3 +2261,177 @@ textarea:focus {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------
+   Chirp Profile dashboard layout + Rent-a-Ref placement
+   --------------------------------------------------------- */
+
+.chirp-profile {
+  overflow: hidden;
+}
+
+.chirp-profile-visual {
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.9rem;
+}
+
+.chirp-radar {
+  align-self: center;
+  justify-content: center;
+}
+
+.chirp-radar svg {
+  width: 5.2rem;
+  height: 5.2rem;
+}
+
+/* Right side of the Chirp Profile: ref card above score chips */
+
+.chirp-profile-dashboard {
+  display: grid;
+  min-width: 0;
+  gap: 0.62rem;
+}
+
+/* Compact referee status panel */
+
+.chirp-ref-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+  min-width: 0;
+  padding: 0.46rem 0.58rem;
+  border: 1px solid rgba(0, 200, 255, 0.28);
+  border-radius: 0.62rem;
+  background:
+    linear-gradient(135deg, rgba(0, 200, 255, 0.1), transparent 48%),
+    rgba(4, 12, 23, 0.64);
+  box-shadow:
+    0 0 0 1px rgba(0, 200, 255, 0.05) inset,
+    0 0 14px rgba(0, 200, 255, 0.07);
+}
+
+.chirp-ref-strip[data-ruling="tone_check"] {
+  border-color: rgba(255, 230, 0, 0.58);
+  background:
+    linear-gradient(135deg, rgba(255, 230, 0, 0.12), transparent 48%),
+    rgba(4, 12, 23, 0.64);
+}
+
+.chirp-ref-strip[data-ruling="under_review"] {
+  border-color: rgba(255, 122, 0, 0.66);
+  background:
+    linear-gradient(135deg, rgba(255, 122, 0, 0.14), transparent 48%),
+    rgba(4, 12, 23, 0.64);
+}
+
+.chirp-ref-strip[data-ruling="penalty"] {
+  border-color: rgba(255, 43, 43, 0.7);
+  background:
+    linear-gradient(135deg, rgba(255, 43, 43, 0.14), transparent 48%),
+    rgba(4, 12, 23, 0.64);
+}
+
+.chirp-ref-avatar {
+  flex: 0 0 auto;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 0.48rem;
+}
+
+.chirp-ref-strip-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.05rem;
+  line-height: 1.08;
+}
+
+.chirp-ref-strip-copy span {
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chirp-ref-strip-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Score chips: dashboard indicators, not oversized pills */
+
+.chirp-profile-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.chirp-score {
+  min-width: 0;
+  border-radius: 0.45rem;
+  padding: 0.26rem 0.44rem;
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+
+.chirp-score-axis {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pill-color) 56%, transparent) inset,
+    0 0 10px rgba(255, 255, 255, 0.02);
+}
+
+.chirp-score strong {
+  margin-right: 0.1rem;
+}
+
+/* Keep profile sidebar compact; it has no post/comment ruling */
+
+.profile-card .chirp-profile-visual {
+  grid-template-columns: 1fr;
+}
+
+.profile-card .chirp-profile-dashboard {
+  gap: 0.45rem;
+}
+
+.profile-card .chirp-ref-strip {
+  display: none;
+}
+
+/* Mobile: radar goes above dashboard, no text clipping */
+
+@media (max-width: 640px) {
+  .chirp-profile-visual {
+    grid-template-columns: 1fr;
+    gap: 0.72rem;
+  }
+
+  .chirp-radar {
+    justify-content: flex-start;
+  }
+
+  .chirp-ref-strip {
+    align-items: center;
+  }
+
+  .chirp-ref-strip-copy strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .chirp-profile-grid {
+    gap: 0.34rem;
+  }
+
+  .chirp-score {
+    font-size: 0.65rem;
+  }
+}
