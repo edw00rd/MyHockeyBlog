@@ -1916,10 +1916,12 @@ function renderChirpPicker({
         ${disabled ? "disabled" : ""}
         title="Open chirp menu"
       >
-        <span class="chirp-picker-icon">
-          <span class="chirp-bird">🐤</span>
-          <span class="chirp-bubble">!</span>
-        </span>
+        <img
+          class="chirp-icon-art"
+          src="/chirp-btn.png"
+          alt=""
+          aria-hidden="true"
+        />
       </button>
 
       <span class="chirp-picker-count">
