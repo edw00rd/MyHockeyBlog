@@ -2487,3 +2487,107 @@ textarea:focus {
   background: rgba(0, 200, 255, 0.22);
   color: #e4fbff;
 }
+
+/* =========================================================
+   Blue Jay Chirp Button
+   Replaces the old circular 🐤 + ! button shell.
+   ========================================================= */
+
+.chirp-picker-trigger {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.chirp-picker-trigger:hover {
+  transform: translateY(-2px) scale(1.06);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chirp-picker-trigger[aria-expanded="true"] {
+  transform: translateY(-1px) scale(1.08) rotate(-2deg);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chirp-picker-trigger:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.chirp-icon-art {
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 0 5px rgba(0, 200, 255, 0.48))
+    drop-shadow(0 0 12px rgba(0, 200, 255, 0.2));
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.chirp-picker-trigger:hover .chirp-icon-art {
+  filter:
+    drop-shadow(0 0 7px rgba(0, 224, 255, 0.82))
+    drop-shadow(0 0 16px rgba(0, 200, 255, 0.32));
+}
+
+.chirp-picker-trigger[aria-expanded="true"] .chirp-icon-art {
+  filter:
+    drop-shadow(0 0 8px rgba(0, 224, 255, 0.95))
+    drop-shadow(0 0 20px rgba(0, 200, 255, 0.42));
+}
+
+/* Keep the count badge attached to the lower-right of the jay. */
+
+.chirp-picker-count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 3;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid rgba(0, 224, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(5, 15, 28, 0.96);
+  color: #f4fbff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 20px;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.42),
+    0 0 10px rgba(0, 200, 255, 0.2);
+}
+
+/* The old emoji elements are no longer used. Safe to hide if any survive. */
+
+.chirp-picker-icon,
+.chirp-bird,
+.chirp-bubble {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .chirp-picker-trigger,
+  .chirp-icon-art {
+    width: 50px;
+    height: 50px;
+  }
+
+  .chirp-picker-count {
+    right: -3px;
+    bottom: -3px;
+  }
+}
