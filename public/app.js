@@ -2263,6 +2263,27 @@ function renderChirpProfile(profile) {
     `--heat-gong: ${getGlow(profile.spam_score)}`
   ].join("; ");
 
+  const hasRentARefRuling = Object.prototype.hasOwnProperty.call(
+    profile,
+    "rent_a_ref_ruling"
+  );
+
+  const ruling = String(profile.rent_a_ref_ruling || "play_on");
+  const rulingLabel = getRentARefRulingLabel(ruling);
+
+  const refereeHtml = hasRentARefRuling
+    ? `
+      <div class="chirp-ref-strip" data-ruling="${escapeHtml(ruling)}">
+        ${renderRentARefAvatar(profile, "chirp-ref-avatar")}
+
+        <div class="chirp-ref-strip-copy">
+          <span>Rent-a-Ref</span>
+          <strong>${escapeHtml(rulingLabel)}</strong>
+        </div>
+      </div>
+    `
+    : "";
+
   return `
     <div class="chirp-profile chirp-profile-heatmap" style="${heatmapStyle}">
       <p class="muted small">
@@ -2272,21 +2293,24 @@ function renderChirpProfile(profile) {
       <div class="chirp-profile-visual">
         ${renderChirpRadar(profile)}
 
-        <div class="chirp-profile-grid">
-          ${axes
-            .map((axis) => `
-              <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
-                <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
-              </span>
-            `)
-            .join("")}
+        <div class="chirp-profile-dashboard">
+          ${refereeHtml}
+
+          <div class="chirp-profile-grid">
+            ${axes
+              .map((axis) => `
+                <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
+                  <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
+                </span>
+              `)
+              .join("")}
+          </div>
         </div>
       </div>
-
-      ${renderRentARefConsole(profile)}
     </div>
   `;
 }
+
 function wireChirpProfileToggles() {
   document.querySelectorAll(".chirp-profile-toggle").forEach((button) => {
     if (button.dataset.wired) return;
