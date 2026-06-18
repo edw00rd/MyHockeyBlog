@@ -2591,3 +2591,84 @@ textarea:focus {
     bottom: -3px;
   }
 }
+
+/* =========================================================
+   FINAL Blue Jay Chirp Button size override
+   This must stay at the very bottom of style.css.
+   ========================================================= */
+
+.chirp-picker {
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+}
+
+.chirp-picker-trigger {
+  display: grid !important;
+  place-items: center !important;
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+  max-width: 56px !important;
+  max-height: 56px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.chirp-picker-trigger .chirp-icon-art {
+  display: block !important;
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+  max-width: 56px !important;
+  max-height: 56px !important;
+  object-fit: contain !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  filter:
+    drop-shadow(0 0 4px rgba(0, 200, 255, 0.48))
+    drop-shadow(0 0 10px rgba(0, 200, 255, 0.22)) !important;
+}
+
+.chirp-picker-trigger:hover {
+  transform: translateY(-2px) scale(1.06) !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.chirp-picker-trigger[aria-expanded="true"] {
+  transform: translateY(-1px) scale(1.08) rotate(-2deg) !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.chirp-picker-count {
+  position: absolute !important;
+  right: -5px !important;
+  bottom: -4px !important;
+  z-index: 5 !important;
+}
+
+@media (max-width: 640px) {
+  .chirp-picker,
+  .chirp-picker-trigger,
+  .chirp-picker-trigger .chirp-icon-art {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+  }
+}
