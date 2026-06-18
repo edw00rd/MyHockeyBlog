@@ -2435,3 +2435,55 @@ textarea:focus {
     font-size: 0.65rem;
   }
 }
+
+/* Active chirp choice: blue highlight + check mark */
+
+.chirp-option {
+  position: relative;
+}
+
+.chirp-option.selected {
+  border-color: rgba(0, 224, 255, 0.95) !important;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 200, 255, 0.24),
+      rgba(0, 224, 255, 0.07)
+    ) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 224, 255, 0.32) inset,
+    0 0 16px rgba(0, 200, 255, 0.18);
+}
+
+.chirp-option.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  right: 0.72rem;
+  display: grid;
+  width: 1.3rem;
+  height: 1.3rem;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgba(0, 224, 255, 0.9);
+  border-radius: 0.38rem;
+  background: rgba(0, 200, 255, 0.18);
+  color: #dffcff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  box-shadow: 0 0 10px rgba(0, 224, 255, 0.18);
+}
+
+.chirp-option.selected .chirp-option-label {
+  color: #e4fbff;
+}
+
+.chirp-option.selected .chirp-option-description {
+  color: rgba(219, 249, 255, 0.8);
+}
+
+.chirp-option.selected .chirp-option-number {
+  border-color: rgba(0, 224, 255, 0.95);
+  background: rgba(0, 200, 255, 0.22);
+  color: #e4fbff;
+}
