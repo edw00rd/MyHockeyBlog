@@ -1869,6 +1869,32 @@ function renderCollapsibleChirpProfile(profile, label = "Chirp Profile") {
   `;
 }
 
+function getChirpButtonImage(contentType = "", contentId = "") {
+  const chirpButtonImages = [
+    "chirp-btn00.png",
+    "chirp-btn01.png",
+    "chirp-btn02.png",
+    "chirp-btn03.png",
+    "chirp-btn04.png",
+    "chirp-btn05.png",
+    "chirp-btn06.png",
+    "chirp-btn07.png",
+    "chirp-btn08.png",
+    "chirp-btn09.png",
+    "chirp-btn10.png"
+  ];
+
+  const seed = `${contentType}:${contentId}`;
+  let hash = 0;
+
+  for (const character of seed) {
+    hash = ((hash << 5) - hash) + character.charCodeAt(0);
+    hash |= 0;
+  }
+
+  return chirpButtonImages[Math.abs(hash) % chirpButtonImages.length];
+}
+
 function renderChirpPicker({
   contentType,
   contentId,
@@ -1876,6 +1902,7 @@ function renderChirpPicker({
   selectedChirpType = "",
   disabled = false
 }) {
+  const chirpButtonImage = getChirpButtonImage(contentType, contentId);
   const optionsHtml = CHIRP_OPTIONS.map((option) => `
     <button
       type="button"
@@ -1907,7 +1934,7 @@ function renderChirpPicker({
       >
         <img
           class="chirp-icon-art"
-          src="/chirp-btn.png"
+          src="/${escapeHtml(chirpButtonImage)}"
           alt=""
           aria-hidden="true"
         />
