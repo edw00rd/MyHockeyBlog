@@ -2527,15 +2527,7 @@ function renderChirpProfile(content) {
     .join("");
 
   return `
-    <details class="chirp-console-card">
-      <summary class="chirp-console-summary">
-        <span class="chirp-console-summary-left">
-          <span class="chirp-console-summary-arrow" aria-hidden="true"></span>
-          <span class="chirp-console-summary-title">Chirp Profile</span>
-          <span class="chirp-console-summary-count">${chirpCount}</span>
-        </span>
-      </summary>
-
+    <div class="chirp-console-card">
       <div class="chirp-console-body" style="${gradientStyle}">
         <div class="chirp-console-top">
           <div class="chirp-console-chart-wrap">
@@ -2562,7 +2554,7 @@ function renderChirpProfile(content) {
           ${pillsHtml}
         </div>
       </div>
-    </details>
+    </div>
   `;
 }
 function wireChirpProfileToggles() {
