@@ -1881,7 +1881,17 @@ function getChirpButtonImage(contentType = "", contentId = "") {
     "chirp-btn07.png",
     "chirp-btn08.png",
     "chirp-btn09.png",
-    "chirp-btn10.png"
+    "chirp-btn10.png",
+    "chirp-btn11.png",
+    "chirp-btn12.png",
+    "chirp-btn13.png",
+    "chirp-btn14.png",
+    "chirp-btn15.png",
+    "chirp-btn16.png",
+    "chirp-btn17.png",
+    "chirp-btn18.png",
+    "chirp-btn19.png",
+    "chirp-btn20.png"
   ];
 
   const seed = `${contentType}:${contentId}`;
