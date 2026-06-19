@@ -2538,7 +2538,7 @@ function renderChirpProfile(content) {
             <div class="chirp-console-ruling-avatar-wrap">
               <img
                 class="chirp-console-ruling-avatar"
-                src="${escapeHtml(avatarSrc)}"
+                src="/${escapeHtml(avatarSrc)}"
                 alt="Rent-A-Ref"
               />
             </div>
