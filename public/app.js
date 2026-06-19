@@ -2463,7 +2463,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
   `;
 }
 
-function const pillsHtml = metrics {
+function renderChirpProfile(content) {
   const chirpCount = Number(content.chirp_count || 0);
   if (!chirpCount) return "";
 
@@ -2472,6 +2472,7 @@ function const pillsHtml = metrics {
 
   const rulingKey =
     String(
+      content.rent_a_ref_ruling ||
       content.rent_a_ref_ruling_key ||
       content.ruling_key ||
       ""
@@ -2480,7 +2481,7 @@ function const pillsHtml = metrics {
   const rulingLabelMap = {
     play_on: "Play On",
     tone_check: "Tone Check",
-    penalty: "Penalty",
+    penalty: "Sent to the Box",
     under_review: "Under Review"
   };
 
@@ -2494,23 +2495,23 @@ function const pillsHtml = metrics {
     content.avatar_key ||
     content.rent_a_ref_avatar_key ||
     (typeof getRentARefAvatarKey === "function"
-      ? getRentARefAvatarKey(rulingKey, content.id)
+      ? getRentARefAvatarKey(content)
       : "ref-img1.png");
 
   const avatarSrc = avatarKey || "ref-img1.png";
 
   const rulingMessage =
-  String(
-    content.rent_a_ref_message ||
-    content.ruling_message ||
-    ""
-  ).trim() || "Keep chirping. No call on the play.";
+    String(
+      content.rent_a_ref_message ||
+      content.ruling_message ||
+      ""
+    ).trim() || "Keep chirping. No call on the play.";
 
   const glowFor = (value) => {
     const score = Math.max(0, Math.min(5, Number(value || 0)));
     return (0.04 + (score / 5) * 0.34).toFixed(3);
   };
-  
+
   const gradientStyle = [
     `--tone-tape: ${glowFor(content.helpful_score)}`,
     `--tone-laughs: ${glowFor(content.funny_score)}`,
@@ -2519,6 +2520,7 @@ function const pillsHtml = metrics {
     `--tone-head: ${glowFor(content.targeted_score)}`,
     `--tone-gong: ${glowFor(content.spam_score)}`
   ].join("; ");
+
   const pillsHtml = metrics
     .map(
       (metric) => `
@@ -2527,7 +2529,7 @@ function const pillsHtml = metrics {
           style="--chirp-pill-color: ${metric.color};"
         >
           <span class="chirp-console-pill-icon">${escapeHtml(metric.icon)}</span>
-  
+
           <span class="chirp-console-pill-copy">
             <span class="chirp-console-pill-label">${escapeHtml(metric.label)}</span>
             <strong class="chirp-console-pill-value">${escapeHtml(formatChirpMetric(metric.value))}</strong>
@@ -2569,6 +2571,7 @@ function const pillsHtml = metrics {
     </div>
   `;
 }
+
 function wireChirpProfileToggles() {
   document.querySelectorAll(".chirp-profile-toggle").forEach((button) => {
     if (button.dataset.wired) return;
