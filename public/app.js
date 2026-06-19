@@ -1870,7 +1870,7 @@ function renderCollapsibleChirpProfile(profile, label = "Chirp Profile") {
 }
 
 function getChirpButtonImage(contentType = "", contentId = "") {
-  const chirpButtonImages = [
+  const rightFacingImages = [
     "chirp-btn00.png",
     "chirp-btn01.png",
     "chirp-btn02.png",
@@ -1881,7 +1881,10 @@ function getChirpButtonImage(contentType = "", contentId = "") {
     "chirp-btn07.png",
     "chirp-btn08.png",
     "chirp-btn09.png",
-    "chirp-btn10.png",
+    "chirp-btn10.png"
+  ];
+
+  const leftFacingImages = [
     "chirp-btn11.png",
     "chirp-btn12.png",
     "chirp-btn13.png",
@@ -1902,7 +1905,12 @@ function getChirpButtonImage(contentType = "", contentId = "") {
     hash |= 0;
   }
 
-  return chirpButtonImages[Math.abs(hash) % chirpButtonImages.length];
+  const safeHash = Math.abs(hash);
+  const imagePool = safeHash % 2 === 0
+    ? leftFacingImages
+    : rightFacingImages;
+
+  return imagePool[safeHash % imagePool.length];
 }
 
 function renderChirpPicker({
