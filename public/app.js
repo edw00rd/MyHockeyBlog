@@ -2281,54 +2281,51 @@ function formatChirpMetric(value) {
 }
 
 function getChirpProfileMetrics(content) {
-  const chirpCount = Number(content.chirp_count || 0);
-
-  const safeAverage = (key) => {
-    const total = Number(content[key] || 0);
-    if (!chirpCount) return 0;
-    return total / chirpCount;
-  };
-
   return [
     {
       key: "tape_to_tape",
       label: "Tape-to-Tape",
+      icon: "🏒",
       color: "#00d8ff",
-      value: safeAverage("tape_to_tape_score")
+      value: Number(content.helpful_score || 0)
     },
     {
       key: "laughs",
       label: "Laughs",
+      icon: "☺",
       color: "#ffe600",
-      value: safeAverage("laughs_score")
+      value: Number(content.funny_score || 0)
     },
     {
       key: "heat",
       label: "Heat",
+      icon: "🔥",
       color: "#ff8a00",
-      value: safeAverage("heat_score")
+      value: Number(content.heat_score || 0)
     },
     {
       key: "cheap_shot",
       label: "Cheap Shot",
+      icon: "🧨",
       color: "#ff3b30",
-      value: safeAverage("cheap_shot_score")
+      value: Number(content.rude_score || 0)
     },
     {
       key: "head_hunting",
       label: "Head-Hunting",
+      icon: "☠",
       color: "#ff00a8",
-      value: safeAverage("head_hunting_score")
+      value: Number(content.targeted_score || 0)
     },
     {
       key: "gongshow",
       label: "Gongshow",
+      icon: "◎",
       color: "#7c3aed",
-      value: safeAverage("gongshow_score")
+      value: Number(content.spam_score || 0)
     }
   ];
 }
-
 function getDominantChirpMetric(metrics) {
   if (!metrics.length) {
     return {
@@ -2466,7 +2463,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
   `;
 }
 
-function renderChirpProfile(content) {
+function const pillsHtml = metrics {
   const chirpCount = Number(content.chirp_count || 0);
   if (!chirpCount) return "";
 
@@ -2502,17 +2499,26 @@ function renderChirpProfile(content) {
 
   const avatarSrc = avatarKey || "ref-img1.png";
 
-  const gradientStyle = `
-    background:
-      radial-gradient(circle at 18% 50%, rgba(0,216,255,0.16), transparent 28%),
-      radial-gradient(circle at 38% 52%, rgba(255,230,0,0.12), transparent 30%),
-      radial-gradient(circle at 54% 50%, rgba(255,138,0,0.14), transparent 30%),
-      radial-gradient(circle at 70% 48%, rgba(255,59,48,0.14), transparent 28%),
-      radial-gradient(circle at 83% 50%, rgba(255,0,168,0.16), transparent 28%),
-      radial-gradient(circle at 94% 52%, rgba(124,58,237,0.18), transparent 30%),
-      linear-gradient(180deg, rgba(8,18,34,0.92), rgba(7,14,28,0.95));
-  `;
+  const rulingMessage =
+  String(
+    content.rent_a_ref_message ||
+    content.ruling_message ||
+    ""
+  ).trim() || "Keep chirping. No call on the play.";
 
+  const glowFor = (value) => {
+    const score = Math.max(0, Math.min(5, Number(value || 0)));
+    return (0.04 + (score / 5) * 0.34).toFixed(3);
+  };
+  
+  const gradientStyle = [
+    `--tone-tape: ${glowFor(content.helpful_score)}`,
+    `--tone-laughs: ${glowFor(content.funny_score)}`,
+    `--tone-heat: ${glowFor(content.heat_score)}`,
+    `--tone-cheap: ${glowFor(content.rude_score)}`,
+    `--tone-head: ${glowFor(content.targeted_score)}`,
+    `--tone-gong: ${glowFor(content.spam_score)}`
+  ].join("; ");
   const pillsHtml = metrics
     .map(
       (metric) => `
@@ -2520,7 +2526,12 @@ function renderChirpProfile(content) {
           class="chirp-console-pill"
           style="--chirp-pill-color: ${metric.color};"
         >
-          ${escapeHtml(metric.label)}: ${escapeHtml(formatChirpMetric(metric.value))}
+          <span class="chirp-console-pill-icon">${escapeHtml(metric.icon)}</span>
+  
+          <span class="chirp-console-pill-copy">
+            <span class="chirp-console-pill-label">${escapeHtml(metric.label)}</span>
+            <strong class="chirp-console-pill-value">${escapeHtml(formatChirpMetric(metric.value))}</strong>
+          </span>
         </span>
       `
     )
@@ -2546,6 +2557,7 @@ function renderChirpProfile(content) {
             <div class="chirp-console-ruling-copy">
               <div class="chirp-console-ruling-kicker">RENT-A-REF</div>
               <div class="chirp-console-ruling-title">${escapeHtml(rulingLabel)}</div>
+              <p class="chirp-console-ruling-message">${escapeHtml(rulingMessage)}</p>
             </div>
           </div>
         </div>
