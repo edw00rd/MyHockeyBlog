@@ -2183,6 +2183,12 @@ function renderChirpRadar(profile) {
 }
 
 function getStableRefImage(seed = "") {
+  const stableRefImages = [
+    "ref-img1.png",
+    "ref-img2.png",
+    "ref-img5.png"
+  ];
+
   let hash = 0;
 
   for (const character of String(seed)) {
@@ -2190,9 +2196,9 @@ function getStableRefImage(seed = "") {
     hash |= 0;
   }
 
-  return Math.abs(hash) % 2 === 0
-    ? "ref-img1.png"
-    : "ref-img2.png";
+  const safeHash = Math.abs(hash);
+
+  return stableRefImages[safeHash % stableRefImages.length];
 }
 
 function getRentARefAvatarKey(content = {}) {
