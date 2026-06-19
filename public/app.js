@@ -2274,75 +2274,297 @@ function renderRentARefConsole(profile = {}) {
   `;
 }
 
-function renderChirpProfile(profile) {
-  const chirpCount = Number(profile.chirp_count || 0);
+function formatChirpMetric(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return n.toFixed(1).replace(/\.0$/, "");
+}
 
-  if (chirpCount === 0) return "";
+function getChirpProfileMetrics(content) {
+  const chirpCount = Number(content.chirp_count || 0);
 
-  const axes = getChirpAxisData(profile);
-
-  const getGlow = (value) => {
-    const score = Math.max(0, Math.min(5, Number(value || 0)));
-    return (0.03 + (score / 5) * 0.28).toFixed(3);
+  const safeAverage = (key) => {
+    const total = Number(content[key] || 0);
+    if (!chirpCount) return 0;
+    return total / chirpCount;
   };
 
-  const heatmapStyle = [
-    `--heat-tape: ${getGlow(profile.helpful_score)}`,
-    `--heat-laughs: ${getGlow(profile.funny_score)}`,
-    `--heat-heat: ${getGlow(profile.heat_score)}`,
-    `--heat-cheap: ${getGlow(profile.rude_score)}`,
-    `--heat-head: ${getGlow(profile.targeted_score)}`,
-    `--heat-gong: ${getGlow(profile.spam_score)}`
-  ].join("; ");
+  return [
+    {
+      key: "tape_to_tape",
+      label: "Tape-to-Tape",
+      color: "#00d8ff",
+      value: safeAverage("tape_to_tape_score")
+    },
+    {
+      key: "laughs",
+      label: "Laughs",
+      color: "#ffe600",
+      value: safeAverage("laughs_score")
+    },
+    {
+      key: "heat",
+      label: "Heat",
+      color: "#ff8a00",
+      value: safeAverage("heat_score")
+    },
+    {
+      key: "cheap_shot",
+      label: "Cheap Shot",
+      color: "#ff3b30",
+      value: safeAverage("cheap_shot_score")
+    },
+    {
+      key: "head_hunting",
+      label: "Head-Hunting",
+      color: "#ff00a8",
+      value: safeAverage("head_hunting_score")
+    },
+    {
+      key: "gongshow",
+      label: "Gongshow",
+      color: "#7c3aed",
+      value: safeAverage("gongshow_score")
+    }
+  ];
+}
 
-  const hasRentARefRuling = Object.prototype.hasOwnProperty.call(
-    profile,
-    "rent_a_ref_ruling"
+function getDominantChirpMetric(metrics) {
+  if (!metrics.length) {
+    return {
+      key: "tape_to_tape",
+      label: "Tape-to-Tape",
+      color: "#00d8ff",
+      value: 0
+    };
+  }
+
+  return metrics.reduce((best, current) => {
+    return current.value > best.value ? current : best;
+  }, metrics[0]);
+}
+
+function renderChirpSpiderSvg(metrics, dominantMetric) {
+  const cx = 78;
+  const cy = 78;
+  const maxRadius = 54;
+  const levels = 5;
+  const maxValue = 5;
+
+  const angleForIndex = (index, total) =>
+    (-Math.PI / 2) + ((Math.PI * 2) * index / total);
+
+  const pointAt = (index, radius, total) => {
+    const angle = angleForIndex(index, total);
+    return {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius
+    };
+  };
+
+  const gridPolygons = [];
+  for (let level = 1; level <= levels; level += 1) {
+    const radius = (maxRadius * level) / levels;
+    const points = metrics
+      .map((_, index) => {
+        const p = pointAt(index, radius, metrics.length);
+        return `${p.x},${p.y}`;
+      })
+      .join(" ");
+    gridPolygons.push(
+      `<polygon points="${points}" class="chirp-spider-grid-level" />`
+    );
+  }
+
+  const axisLines = metrics
+    .map((_, index) => {
+      const p = pointAt(index, maxRadius, metrics.length);
+      return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" class="chirp-spider-axis-line" />`;
+    })
+    .join("");
+
+  const shapePoints = metrics
+    .map((metric, index) => {
+      const clamped = Math.max(0, Math.min(maxValue, Number(metric.value || 0)));
+      const radius = (clamped / maxValue) * maxRadius;
+      const p = pointAt(index, radius, metrics.length);
+      return `${p.x},${p.y}`;
+    })
+    .join(" ");
+
+  const dominantIndex = Math.max(
+    0,
+    metrics.findIndex((metric) => metric.key === dominantMetric.key)
   );
 
-  const ruling = String(profile.rent_a_ref_ruling || "play_on");
-  const rulingLabel = getRentARefRulingLabel(ruling);
+  const dominantRadius =
+    (Math.max(0, Math.min(maxValue, Number(dominantMetric.value || 0))) / maxValue) *
+    maxRadius;
 
-  const refereeHtml = hasRentARefRuling
-    ? `
-      <div class="chirp-ref-strip" data-ruling="${escapeHtml(ruling)}">
-        ${renderRentARefAvatar(profile, "chirp-ref-avatar")}
+  const spiderPoint = pointAt(dominantIndex, dominantRadius, metrics.length);
 
-        <div class="chirp-ref-strip-copy">
-          <span>Rent-a-Ref</span>
-          <strong>${escapeHtml(rulingLabel)}</strong>
-        </div>
-      </div>
-    `
-    : "";
+  const spiderColor = dominantMetric.color || "#00d8ff";
+
+  const spiderSvg = `
+    <g transform="translate(${spiderPoint.x}, ${spiderPoint.y})" class="chirp-spider-marker">
+      <line x1="-7" y1="-5" x2="-12" y2="-10" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="-7" y1="-1" x2="-13" y2="-2" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="-7" y1="3" x2="-12" y2="8" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="-3" y1="6" x2="-7" y2="12" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+
+      <line x1="7" y1="-5" x2="12" y2="-10" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="7" y1="-1" x2="13" y2="-2" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="7" y1="3" x2="12" y2="8" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+      <line x1="3" y1="6" x2="7" y2="12" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
+
+      <circle cx="0" cy="-2.5" r="4.2" fill="${spiderColor}" />
+      <circle cx="0" cy="4" r="5.6" fill="${spiderColor}" />
+      <circle cx="-1.4" cy="-3.2" r="0.9" fill="#ffffff" opacity="0.95" />
+      <circle cx="1.4" cy="-3.2" r="0.9" fill="#ffffff" opacity="0.95" />
+    </g>
+  `;
 
   return `
-    <div class="chirp-profile chirp-profile-heatmap" style="${heatmapStyle}">
-      <p class="muted small">
-        <strong>Chirp Profile</strong> · ${chirpCount} chirp${chirpCount === 1 ? "" : "s"}
-      </p>
+    <svg
+      class="chirp-spider-svg"
+      viewBox="0 0 156 156"
+      width="156"
+      height="156"
+      aria-hidden="true"
+    >
+      <defs>
+        <filter id="chirpSpiderGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
 
-      <div class="chirp-profile-visual">
-        ${renderChirpRadar(profile)}
+      ${gridPolygons.join("")}
+      ${axisLines}
 
-        <div class="chirp-profile-dashboard">
-          ${refereeHtml}
+      <polygon
+        points="${shapePoints}"
+        class="chirp-spider-shape"
+        fill="${dominantMetric.color}22"
+        stroke="${dominantMetric.color}"
+        stroke-width="2.25"
+        filter="url(#chirpSpiderGlow)"
+      />
 
-          <div class="chirp-profile-grid">
-            ${axes
-              .map((axis) => `
-                <span class="chirp-score chirp-score-axis" style="--pill-color: ${axis.color};">
-                  <strong>${escapeHtml(axis.label)}</strong>: ${escapeHtml(formatChirpScore(axis.value))}
-                </span>
-              `)
-              .join("")}
-          </div>
-        </div>
-      </div>
-    </div>
+      <circle
+        cx="${cx}"
+        cy="${cy}"
+        r="2.5"
+        fill="${dominantMetric.color}"
+      />
+
+      ${spiderSvg}
+    </svg>
   `;
 }
 
+function renderChirpProfile(content) {
+  const chirpCount = Number(content.chirp_count || 0);
+  if (!chirpCount) return "";
+
+  const metrics = getChirpProfileMetrics(content);
+  const dominantMetric = getDominantChirpMetric(metrics);
+
+  const rulingKey =
+    String(
+      content.rent_a_ref_ruling_key ||
+      content.ruling_key ||
+      ""
+    ).trim() || "play_on";
+
+  const rulingLabelMap = {
+    play_on: "Play On",
+    tone_check: "Tone Check",
+    penalty: "Penalty",
+    under_review: "Under Review"
+  };
+
+  const rulingLabel =
+    content.rent_a_ref_ruling_label ||
+    content.ruling_label ||
+    rulingLabelMap[rulingKey] ||
+    "Play On";
+
+  const avatarKey =
+    content.avatar_key ||
+    content.rent_a_ref_avatar_key ||
+    (typeof getRentARefAvatarKey === "function"
+      ? getRentARefAvatarKey(rulingKey, content.id)
+      : "ref-img1.png");
+
+  const avatarSrc = avatarKey || "ref-img1.png";
+
+  const gradientStyle = `
+    background:
+      radial-gradient(circle at 18% 50%, rgba(0,216,255,0.16), transparent 28%),
+      radial-gradient(circle at 38% 52%, rgba(255,230,0,0.12), transparent 30%),
+      radial-gradient(circle at 54% 50%, rgba(255,138,0,0.14), transparent 30%),
+      radial-gradient(circle at 70% 48%, rgba(255,59,48,0.14), transparent 28%),
+      radial-gradient(circle at 83% 50%, rgba(255,0,168,0.16), transparent 28%),
+      radial-gradient(circle at 94% 52%, rgba(124,58,237,0.18), transparent 30%),
+      linear-gradient(180deg, rgba(8,18,34,0.92), rgba(7,14,28,0.95));
+  `;
+
+  const pillsHtml = metrics
+    .map(
+      (metric) => `
+        <span
+          class="chirp-console-pill"
+          style="--chirp-pill-color: ${metric.color};"
+        >
+          ${escapeHtml(metric.label)}: ${escapeHtml(formatChirpMetric(metric.value))}
+        </span>
+      `
+    )
+    .join("");
+
+  return `
+    <details class="chirp-console-card">
+      <summary class="chirp-console-summary">
+        <span class="chirp-console-summary-left">
+          <span class="chirp-console-summary-arrow" aria-hidden="true"></span>
+          <span class="chirp-console-summary-title">Chirp Profile</span>
+          <span class="chirp-console-summary-count">${chirpCount}</span>
+        </span>
+      </summary>
+
+      <div class="chirp-console-body" style="${gradientStyle}">
+        <div class="chirp-console-top">
+          <div class="chirp-console-chart-wrap">
+            ${renderChirpSpiderSvg(metrics, dominantMetric)}
+          </div>
+
+          <div class="chirp-console-ruling">
+            <div class="chirp-console-ruling-avatar-wrap">
+              <img
+                class="chirp-console-ruling-avatar"
+                src="${escapeHtml(avatarSrc)}"
+                alt="Rent-A-Ref"
+              />
+            </div>
+
+            <div class="chirp-console-ruling-copy">
+              <div class="chirp-console-ruling-kicker">RENT-A-REF</div>
+              <div class="chirp-console-ruling-title">${escapeHtml(rulingLabel)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chirp-console-pills">
+          ${pillsHtml}
+        </div>
+      </div>
+    </details>
+  `;
+}
 function wireChirpProfileToggles() {
   document.querySelectorAll(".chirp-profile-toggle").forEach((button) => {
     if (button.dataset.wired) return;
