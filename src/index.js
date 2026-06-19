@@ -1942,6 +1942,12 @@ function getAutomaticRentARefRulingKey(moderationDecision, chirpProfile) {
 }
 
 function getStableRefVariant(seed = "") {
+  const refImages = [
+    "ref-img1.png",
+    "ref-img2.png",
+    "ref-img5.png"
+  ];
+
   let hash = 0;
 
   for (const character of String(seed)) {
@@ -1949,9 +1955,10 @@ function getStableRefVariant(seed = "") {
     hash |= 0;
   }
 
-  return Math.abs(hash) % 2 === 0 ? "ref-img1.png" : "ref-img2.png";
-}
+  const safeHash = Math.abs(hash);
 
+  return refImages[safeHash % refImages.length];
+}
 function getRentARefAvatarKey(rulingKey, contentId) {
   if (rulingKey === "under_review") return "ref-img3.png";
   if (rulingKey === "penalty") return "ref-img4.png";
