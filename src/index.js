@@ -11,6 +11,28 @@ const REVIEW_DECISION_THRESHOLD = 2; // First side to 2 wins.
 const REVIEW_TOKEN_TIMEOUT_MINUTES = 10;
 const REVIEW_ACTING_USER_ID = DEMO_USER_ID; // Temporary until login/auth exists.
 
+const TERMS_VERSION = "2026-06-23-v1";
+
+const SECURITY_HEADERS = {
+  "content-security-policy": [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' https: data:",
+    "media-src 'self' https:",
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests"
+  ].join("; "),
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "permissions-policy": "camera=(), microphone=(), geolocation=()"
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
