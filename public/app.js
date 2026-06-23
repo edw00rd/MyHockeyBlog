@@ -1046,14 +1046,7 @@ function renderPostBodyText(body = "") {
     const href = getSafeLinkHref(urlText);
 
     if (href && !isMediaUrlForBodyLink(urlText)) {
-      html += `
-        <a
-          class="post-body-link"
-          href="${escapeHtml(href)}"
-          target="_blank"
-          rel="noopener noreferrer"
-        >${escapeHtml(urlText)}</a>${escapeHtml(trailing)}
-      `;
+      html += `<a class="post-body-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(urlText)}</a>${escapeHtml(trailing)}`;
     } else {
       html += escapeHtml(rawMatch);
     }
