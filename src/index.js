@@ -520,6 +520,84 @@ function validateTagsInput(rawTags) {
   };
 }
 
+function validateMediaUrlInput(value = "") {
+  const raw = String(value || "").trim();
+
+  if (!raw) {
+    return {
+      ok: true,
+      value: ""
+    };
+  }
+
+  if (raw.length > 500) {
+    return {
+      ok: false,
+      error: "Media URL or note is too long. Keep it under 500 characters."
+    };
+  }
+
+  if (containsHtmlLikeMarkup(raw) || containsSuspiciousProtocol(raw) || containsSuspiciousScriptPattern(raw)) {
+    return {
+      ok: false,
+      error: "Media URL or note contains unsafe content."
+    };
+  }
+
+  const looksLikeUrl = /^(https?:\/\/|www\.)/i.test(raw);
+
+  if (!looksLikeUrl) {
+    return {
+      ok: true,
+      value: raw
+    };
+  }
+
+  let url;
+
+  try {
+    url = new URL(raw.startsWith("www.") ? `https://${raw}` : raw);
+  } catch {
+    return {
+      ok: false,
+      error: "Media URL is not a valid URL."
+    };
+  }
+
+  if (!["https:"].includes(url.protocol)) {
+    return {
+      ok: false,
+      error: "Media URL must use https."
+    };
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname.toLowerCase();
+
+  const isYouTube =
+    hostname === "youtube.com" ||
+    hostname === "www.youtube.com" ||
+    hostname === "youtu.be" ||
+    hostname === "www.youtu.be" ||
+    hostname === "youtube-nocookie.com" ||
+    hostname === "www.youtube-nocookie.com";
+
+  const isDirectImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(pathname);
+  const isDirectVideo = /\.(mp4|webm|mov)$/i.test(pathname);
+
+  if (!isYouTube && !isDirectImage && !isDirectVideo) {
+    return {
+      ok: false,
+      error: "Media URL must be YouTube, a direct image URL, or a direct video URL."
+    };
+  }
+
+  return {
+    ok: true,
+    value: url.toString()
+  };
+}
+
 function requireCommunityTermsAccepted(body = {}) {
   if (
     body.terms_accepted !== true &&
@@ -790,6 +868,7 @@ async function getPosts(request, env) {
         posts.id,
         posts.title,
         posts.body,
+        COALESCE(posts.media_url, '') AS media_url,
         posts.post_type,
         posts.visibility,
         posts.comments_enabled,
@@ -1074,7 +1153,6 @@ async function createPost(request, env) {
         400
       );
     }
-    
     const tagsResult = validateTagsInput(body.tags || "");
     
     if (!tagsResult.ok) {
@@ -1086,8 +1164,22 @@ async function createPost(request, env) {
         400
       );
     }
+    
+    const mediaResult = validateMediaUrlInput(body.media_url || body.video || "");
+    
+    if (!mediaResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: mediaResult.error
+        },
+        400
+      );
+    }
+    
     const title = titleResult.value;
     const content = bodyResult.value;
+    const mediaUrl = mediaResult.value;
     const postType = String(body.post_type || "progress").trim();
     const visibility = String(body.visibility || "public").trim();
     const commentsEnabled = body.comments_enabled === false ? 0 : 1;
@@ -1112,6 +1204,7 @@ async function createPost(request, env) {
         author_user_id,
         title,
         body,
+        media_url,
         post_type,
         visibility,
         comments_enabled,
@@ -1120,7 +1213,7 @@ async function createPost(request, env) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
       .bind(
@@ -1128,6 +1221,7 @@ async function createPost(request, env) {
         currentUser.user_id,
         title,
         content,
+        mediaUrl,
         safePostType,
         safeVisibility,
         commentsEnabled,
@@ -1148,6 +1242,7 @@ async function createPost(request, env) {
           id: postId,
           title,
           body: content,
+          media_url: mediaUrl,
           post_type: safePostType,
           visibility: safeVisibility,
           comments_enabled: commentsEnabled === 1,
