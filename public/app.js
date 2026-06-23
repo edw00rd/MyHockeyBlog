@@ -909,6 +909,120 @@ function wireReviewControls() {
   });
 }
 
+function extractSafeMediaLinksFromText(text = "") {
+  const matches = String(text || "").match(/https:\/\/[^\s<>"']+/gi) || [];
+  const uniqueUrls = [...new Set(matches)];
+
+  return uniqueUrls
+    .map((rawUrl) => {
+      try {
+        const url = new URL(rawUrl);
+        const hostname = url.hostname.toLowerCase();
+        const pathname = url.pathname.toLowerCase();
+
+        const isYouTube =
+          hostname === "youtube.com" ||
+          hostname === "www.youtube.com" ||
+          hostname === "youtu.be" ||
+          hostname === "www.youtu.be" ||
+          hostname === "youtube-nocookie.com" ||
+          hostname === "www.youtube-nocookie.com";
+
+        const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(pathname);
+        const isVideo = /\.(mp4|webm|mov)$/i.test(pathname);
+
+        if (!isYouTube && !isImage && !isVideo) {
+          return null;
+        }
+
+        return {
+          raw_url: rawUrl,
+          url: url.toString(),
+          type: isYouTube ? "youtube" : isImage ? "image" : "video",
+          youtube_id: isYouTube ? getYouTubeVideoId(url) : ""
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function getYouTubeVideoId(url) {
+  const hostname = url.hostname.toLowerCase();
+
+  if (hostname === "youtu.be" || hostname === "www.youtu.be") {
+    return url.pathname.replace("/", "").trim();
+  }
+
+  if (url.searchParams.get("v")) {
+    return url.searchParams.get("v").trim();
+  }
+
+  const embedMatch = url.pathname.match(/\/embed\/([^/]+)/);
+
+  if (embedMatch?.[1]) {
+    return embedMatch[1].trim();
+  }
+
+  return "";
+}
+
+function renderPostMedia(body = "") {
+  const mediaLinks = extractSafeMediaLinksFromText(body);
+
+  if (!mediaLinks.length) {
+    return "";
+  }
+
+  return `
+    <div class="post-media-list">
+      ${mediaLinks
+        .map((media) => {
+          if (media.type === "youtube" && media.youtube_id) {
+            return `
+              <div class="post-media-card post-media-youtube">
+                <iframe
+                  src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(media.youtube_id)}"
+                  title="Embedded hockey video"
+                  loading="lazy"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowfullscreen
+                ></iframe>
+              </div>
+            `;
+          }
+
+          if (media.type === "image") {
+            return `
+              <a
+                class="post-media-card post-media-image"
+                href="${escapeHtml(media.url)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img src="${escapeHtml(media.url)}" alt="Post media" loading="lazy" />
+              </a>
+            `;
+          }
+
+          if (media.type === "video") {
+            return `
+              <div class="post-media-card post-media-video">
+                <video controls preload="metadata">
+                  <source src="${escapeHtml(media.url)}" />
+                </video>
+              </div>
+            `;
+          }
+
+          return "";
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderPosts(posts) {
   const container = $("#post-list");
   if (!container) return;
@@ -947,6 +1061,7 @@ function renderPosts(posts) {
     const moderationStatus = String(post.moderation_status || "visible");
     const postIsBoxed = moderationStatus !== "visible";
     const moderationBannerHtml = renderModerationBanner(post, "post");
+    const postMediaHtml = renderPostMedia(post.body || "");
 
     card.innerHTML = `
       <div class="post-meta">
@@ -965,9 +1080,11 @@ function renderPosts(posts) {
         class="boxed-content"
         ${postIsBoxed ? "hidden" : ""}
       >
-        <p class="muted">${escapeHtml(post.body || "")}</p>
+      <p class="muted">${escapeHtml(post.body || "")}</p>
       
-        ${tagsHtml}
+      ${postMediaHtml}
+            
+      ${tagsHtml}
 
       <div class="post-meta">
         ${renderChirpPicker({
