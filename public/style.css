@@ -434,6 +434,23 @@ textarea:focus {
   gap: 0.9rem;
 }
 
+.post-body-text {
+  overflow-wrap: anywhere;
+}
+
+.post-body-link {
+  color: var(--accent-strong);
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-shadow: 0 0 10px rgba(0, 200, 255, 0.18);
+}
+
+.post-body-link:hover {
+  color: var(--good);
+}
+
 .post-media-list {
   display: grid;
   gap: 0.8rem;
