@@ -1055,6 +1055,7 @@ function wireForms() {
       const visibility = String(form.get("visibility") || "public").trim();
       const comments = String(form.get("comments") || "allow").trim();
       const tags = String(form.get("tags") || "").trim();
+      const mediaUrl = String(form.get("video") || "").trim();
 
       if (!title || !body) {
         alert("Please enter both a title and an update.");
@@ -1075,7 +1076,8 @@ function wireForms() {
             post_type: "progress",
             visibility,
             comments_enabled: comments === "allow",
-            tags
+            tags,
+            media_url: mediaUrl
           })
         });
         
