@@ -180,7 +180,8 @@ export default {
       );
     }
 
-    return env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
+    return withSecurityHeaders(assetResponse);
   }
 };
 
@@ -387,6 +388,153 @@ async function listUsers(env) {
       500
     );
   }
+}
+
+function normalizePlainText(value = "", maxLength = 1000) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function containsHtmlLikeMarkup(value = "") {
+  return /<\/?[a-z][\s\S]*>/i.test(String(value || ""));
+}
+
+function containsSuspiciousProtocol(value = "") {
+  return /\b(javascript|data|vbscript|file|blob|chrome|about):/i.test(String(value || ""));
+}
+
+function containsSuspiciousScriptPattern(value = "") {
+  const text = String(value || "");
+
+  return (
+    /<\s*script/i.test(text) ||
+    /\bon[a-z]+\s*=/i.test(text) ||
+    /srcdoc\s*=/i.test(text) ||
+    /document\.cookie/i.test(text) ||
+    /localStorage/i.test(text) ||
+    /sessionStorage/i.test(text)
+  );
+}
+
+function validatePlainUserText(value, {
+  fieldName = "Text",
+  minLength = 1,
+  maxLength = 1000,
+  allowLinks = true
+} = {}) {
+  const original = String(value || "");
+  const text = normalizePlainText(original, maxLength);
+
+  if (text.length < minLength) {
+    return {
+      ok: false,
+      error: `${fieldName} is required.`
+    };
+  }
+
+  if (original.trim().length > maxLength) {
+    return {
+      ok: false,
+      error: `${fieldName} is too long. Keep it under ${maxLength} characters.`
+    };
+  }
+
+  if (containsHtmlLikeMarkup(text)) {
+    return {
+      ok: false,
+      error: `${fieldName} cannot contain HTML.`
+    };
+  }
+
+  if (containsSuspiciousProtocol(text) || containsSuspiciousScriptPattern(text)) {
+    return {
+      ok: false,
+      error: `${fieldName} contains unsafe content.`
+    };
+  }
+
+  if (!allowLinks && /(https?:\/\/|www\.|\.com\b|\.net\b|\.org\b|\.io\b)/i.test(text)) {
+    return {
+      ok: false,
+      error: `${fieldName} cannot contain links.`
+    };
+  }
+
+  return {
+    ok: true,
+    value: text
+  };
+}
+
+function validateTagsInput(rawTags) {
+  const raw = String(rawTags || "");
+
+  if (raw.length > 300) {
+    return {
+      ok: false,
+      error: "Tags are too long. Keep the tag field under 300 characters."
+    };
+  }
+
+  if (containsHtmlLikeMarkup(raw) || containsSuspiciousProtocol(raw) || containsSuspiciousScriptPattern(raw)) {
+    return {
+      ok: false,
+      error: "Tags contain unsafe content."
+    };
+  }
+
+  const parts = raw
+    .split(/[,\s]+/)
+    .map((tag) => tag.trim().replace(/^#/, ""))
+    .filter(Boolean);
+
+  if (parts.length > 12) {
+    return {
+      ok: false,
+      error: "Use 12 tags or fewer."
+    };
+  }
+
+  for (const tag of parts) {
+    if (tag.length < 2 || tag.length > 24) {
+      return {
+        ok: false,
+        error: "Each tag must be 2 to 24 characters."
+      };
+    }
+
+    if (!/^[a-z0-9-]+$/i.test(tag)) {
+      return {
+        ok: false,
+        error: "Tags can only use letters, numbers, and hyphens."
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    value: parts.join(",")
+  };
+}
+
+function requireCommunityTermsAccepted(body = {}) {
+  if (
+    body.terms_accepted !== true &&
+    body.terms_accepted !== "true" &&
+    body.terms_accepted !== "on"
+  ) {
+    return {
+      ok: false,
+      error: "You must accept the community terms before creating an account."
+    };
+  }
+
+  return {
+    ok: true
+  };
 }
 
 async function createUser(request, env) {
@@ -850,33 +998,57 @@ async function getPosts(request, env) {
 async function createPost(request, env) {
   try {
     const body = await readJsonBody(request);
-
-    const title = String(body.title || "").trim();
-    const content = String(body.body || "").trim();
+    const titleResult = validatePlainUserText(body.title, {
+      fieldName: "Post title",
+      minLength: 1,
+      maxLength: 120,
+      allowLinks: false
+    });
+    
+    if (!titleResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: titleResult.error
+        },
+        400
+      );
+    }
+    
+    const bodyResult = validatePlainUserText(body.body, {
+      fieldName: "Post body",
+      minLength: 1,
+      maxLength: 3000,
+      allowLinks: true
+    });
+    
+    if (!bodyResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: bodyResult.error
+        },
+        400
+      );
+    }
+    
+    const tagsResult = validateTagsInput(body.tags || "");
+    
+    if (!tagsResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: tagsResult.error
+        },
+        400
+      );
+    }
+    const title = titleResult.value;
+    const content = bodyResult.value;
     const postType = String(body.post_type || "progress").trim();
     const visibility = String(body.visibility || "public").trim();
     const commentsEnabled = body.comments_enabled === false ? 0 : 1;
-    const rawTags = body.tags || "";
-
-    if (!title) {
-      return json(
-        {
-          ok: false,
-          error: "Post title is required."
-        },
-        400
-      );
-    }
-
-    if (!content) {
-      return json(
-        {
-          ok: false,
-          error: "Post body is required."
-        },
-        400
-      );
-    }
+    const rawTags = tagsResult.value;
 
     const allowedTypes = ["progress", "game", "practice", "gear", "training", "general"];
     const allowedVisibility = ["public", "private", "unlisted"];
@@ -1231,29 +1403,26 @@ async function getComments(request, env, postId) {
 async function createComment(request, env, postId) {
   try {
     const body = await readJsonBody(request);
-    const commentBody = String(body.body || "").trim();
+
+    const commentBodyResult = validatePlainUserText(body.body, {
+      fieldName: "Comment",
+      minLength: 1,
+      maxLength: 1000,
+      allowLinks: false
+    });
+    
+    if (!commentBodyResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: commentBodyResult.error
+        },
+        400
+      );
+    }
+    
+    const commentBody = commentBodyResult.value;
     const parentCommentId = String(body.parent_comment_id || "").trim() || null;
-
-    if (!commentBody) {
-      return json(
-        {
-          ok: false,
-          error: "Comment body is required."
-        },
-        400
-      );
-    }
-
-    if (commentBody.length > 1000) {
-      return json(
-        {
-          ok: false,
-          error: "Comment is too long. Keep it under 1000 characters."
-        },
-        400
-      );
-    }
-
     const post = await env.DB.prepare(
       `
       SELECT id, comments_enabled
@@ -4849,8 +5018,23 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
+      ...SECURITY_HEADERS,
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store"
     }
+  });
+}
+
+function withSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(name, value);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
   });
 }
