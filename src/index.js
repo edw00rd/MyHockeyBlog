@@ -541,7 +541,37 @@ async function createUser(request, env) {
   try {
     const body = await readJsonBody(request);
 
-    const displayName = String(body.display_name || "").trim();
+    const termsResult = requireCommunityTermsAccepted(body);
+
+    if (!termsResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: termsResult.error,
+          terms_version: TERMS_VERSION
+        },
+        400
+      );
+    }
+    
+    const displayNameResult = validatePlainUserText(body.display_name, {
+      fieldName: "Display name",
+      minLength: 1,
+      maxLength: 60,
+      allowLinks: false
+    });
+    
+    if (!displayNameResult.ok) {
+      return json(
+        {
+          ok: false,
+          error: displayNameResult.error
+        },
+        400
+      );
+    }
+    
+    const displayName = displayNameResult.value;
     const requestedUsername = String(body.username || displayName || "").trim();
     const username = slugifyUsername(requestedUsername);
 
@@ -549,18 +579,25 @@ async function createUser(request, env) {
     const jerseyResult = normalizeJerseyNumber(body.jersey_number);
     const leadershipResult = normalizeLeadershipRole(body.leadership_role, positionResult.position);
 
-    const teamName = String(body.team_name || "MyHockeyBlog Test Team").trim();
-    const skillLevel = String(body.skill_level || "Demo user").trim();
-
-    if (!displayName) {
+    const teamNameResult = validatePlainUserText(body.team_name || "MyHockeyBlog Test Team", {
+      fieldName: "Team name",
+      minLength: 1,
+      maxLength: 80,
+      allowLinks: false
+    });
+    
+    if (!teamNameResult.ok) {
       return json(
         {
           ok: false,
-          error: "display_name is required."
+          error: teamNameResult.error
         },
         400
       );
     }
+    
+    const teamName = teamNameResult.value;
+    const skillLevel = "Demo user";
 
     if (!username) {
       return json(
@@ -638,10 +675,13 @@ async function createUser(request, env) {
         auth_provider,
         auth_provider_user_id,
         role,
+        terms_accepted_at,
+        terms_version,
+        community_guidelines_accepted_at,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
       .bind(
@@ -651,6 +691,9 @@ async function createUser(request, env) {
         "demo",
         `demo-${userId}`,
         "user",
+        now,
+        TERMS_VERSION,
+        now,
         now,
         now
       )
