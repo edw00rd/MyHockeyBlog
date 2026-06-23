@@ -231,7 +231,8 @@ function wireUserControls() {
       const jerseyNumber = String(data.get("jersey_number") || "").trim();
       const leadershipRole = String(data.get("leadership_role") || "none").trim();
       const teamName = String(data.get("team_name") || "MyHockeyBlog Test Team").trim();
-
+      const termsAccepted = data.get("terms_accepted") === "on";
+      
       if (!displayName) {
         alert("Display name is required.");
         return;
@@ -245,15 +246,16 @@ function wireUserControls() {
 
         const result = await fetchJson("/api/users", {
           method: "POST",
-          body: JSON.stringify({
-            display_name: displayName,
-            username,
-            position,
-            jersey_number: jerseyNumber,
-            leadership_role: leadershipRole,
-            team_name: teamName,
-            skill_level: "Demo user"
-          })
+         body: JSON.stringify({
+          display_name: displayName,
+          username,
+          position,
+          jersey_number: jerseyNumber,
+          leadership_role: leadershipRole,
+          team_name: teamName,
+          skill_level: "Demo user",
+          terms_accepted: termsAccepted
+        })
         });
 
         if (result.user?.user_id) {
