@@ -968,6 +968,104 @@ function getYouTubeVideoId(url) {
   return "";
 }
 
+function splitTrailingUrlPunctuation(value = "") {
+  let urlText = String(value || "");
+  let trailing = "";
+
+  while (/[),.!?;:]$/.test(urlText)) {
+    trailing = urlText.slice(-1) + trailing;
+    urlText = urlText.slice(0, -1);
+  }
+
+  return {
+    urlText,
+    trailing
+  };
+}
+
+function getSafeLinkHref(rawUrl = "") {
+  const trimmed = String(rawUrl || "").trim();
+
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed);
+
+    if (url.protocol !== "https:") {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function isMediaUrlForBodyLink(rawUrl = "") {
+  const href = getSafeLinkHref(rawUrl);
+
+  if (!href) return false;
+
+  try {
+    const url = new URL(href);
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.toLowerCase();
+
+    const isYouTube =
+      hostname === "youtube.com" ||
+      hostname === "www.youtube.com" ||
+      hostname === "youtu.be" ||
+      hostname === "www.youtu.be" ||
+      hostname === "youtube-nocookie.com" ||
+      hostname === "www.youtube-nocookie.com";
+
+    const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(pathname);
+    const isVideo = /\.(mp4|webm|mov)$/i.test(pathname);
+
+    return isYouTube || isImage || isVideo;
+  } catch {
+    return false;
+  }
+}
+
+function renderPostBodyText(body = "") {
+  const text = String(body || "");
+  const urlPattern = /(https:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+
+  let html = "";
+  let lastIndex = 0;
+  let match;
+
+  while ((match = urlPattern.exec(text)) !== null) {
+    const rawMatch = match[0];
+    const start = match.index;
+
+    html += escapeHtml(text.slice(lastIndex, start));
+
+    const { urlText, trailing } = splitTrailingUrlPunctuation(rawMatch);
+    const href = getSafeLinkHref(urlText);
+
+    if (href && !isMediaUrlForBodyLink(urlText)) {
+      html += `
+        <a
+          class="post-body-link"
+          href="${escapeHtml(href)}"
+          target="_blank"
+          rel="noopener noreferrer"
+        >${escapeHtml(urlText)}</a>${escapeHtml(trailing)}
+      `;
+    } else {
+      html += escapeHtml(rawMatch);
+    }
+
+    lastIndex = start + rawMatch.length;
+  }
+
+  html += escapeHtml(text.slice(lastIndex));
+
+  return html.replace(/\n/g, "<br />");
+}
+
 function renderPostMedia(body = "") {
   const mediaLinks = extractSafeMediaLinksFromText(body);
 
@@ -1080,10 +1178,10 @@ function renderPosts(posts) {
         class="boxed-content"
         ${postIsBoxed ? "hidden" : ""}
       >
-      <p class="muted">${escapeHtml(post.body || "")}</p>
+      <p class="muted post-body-text">${renderPostBodyText(post.body || "")}</p>
       
       ${postMediaHtml}
-            
+                  
       ${tagsHtml}
 
       <div class="post-meta">
