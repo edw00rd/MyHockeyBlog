@@ -2616,20 +2616,147 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
 
   const spiderSvg = `
     <g transform="translate(${spiderPoint.x}, ${spiderPoint.y})" class="chirp-spider-marker">
-      <line x1="-7" y1="-5" x2="-12" y2="-10" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="-7" y1="-1" x2="-13" y2="-2" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="-7" y1="3" x2="-12" y2="8" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="-3" y1="6" x2="-7" y2="12" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-
-      <line x1="7" y1="-5" x2="12" y2="-10" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="7" y1="-1" x2="13" y2="-2" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="7" y1="3" x2="12" y2="8" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-      <line x1="3" y1="6" x2="7" y2="12" stroke="${spiderColor}" stroke-width="1.8" stroke-linecap="round" />
-
-      <circle cx="0" cy="-2.5" r="4.2" fill="${spiderColor}" />
-      <circle cx="0" cy="4" r="5.6" fill="${spiderColor}" />
-      <circle cx="-1.4" cy="-3.2" r="0.9" fill="#ffffff" opacity="0.95" />
-      <circle cx="1.4" cy="-3.2" r="0.9" fill="#ffffff" opacity="0.95" />
+      <g transform="scale(0.48)">
+        <path
+          d="M -11 -15 L -34 -54 L -31 -82"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+        <path
+          d="M 11 -15 L 34 -54 L 31 -82"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+  
+        <path
+          d="M -17 -8 L -50 -35 L -75 -48"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+        <path
+          d="M 17 -8 L 50 -35 L 75 -48"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+  
+        <path
+          d="M -19 1 L -56 8 L -84 29"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+        <path
+          d="M 19 1 L 56 8 L 84 29"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+  
+        <path
+          d="M -13 13 L -38 43 L -44 82"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+        <path
+          d="M 13 13 L 38 43 L 44 82"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="3"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+  
+        <ellipse
+          cx="0"
+          cy="-17"
+          rx="12"
+          ry="14"
+          fill="rgba(3, 10, 20, 0.9)"
+          stroke="${spiderColor}"
+          stroke-width="2.5"
+        />
+  
+        <path
+          d="M -5 -31 L -10 -42 L -3 -34"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="2.5"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+        <path
+          d="M 5 -31 L 10 -42 L 3 -34"
+          fill="none"
+          stroke="${spiderColor}"
+          stroke-width="2.5"
+          stroke-linecap="butt"
+          stroke-linejoin="miter"
+        />
+  
+        <path
+          d="M 0 -3
+             C 18 -2 20 24 0 60
+             C -20 24 -18 -2 0 -3 Z"
+          fill="rgba(3, 10, 20, 0.92)"
+          stroke="${spiderColor}"
+          stroke-width="2.5"
+          stroke-linejoin="miter"
+        />
+  
+        <path
+          d="M 0 3 L 0 55"
+          stroke="${spiderColor}"
+          stroke-width="1.5"
+          opacity="0.9"
+        />
+  
+        <path
+          d="M -7 8 L 7 8"
+          stroke="${spiderColor}"
+          stroke-width="1.6"
+          opacity="0.8"
+        />
+        <path
+          d="M -8 18 L 8 18"
+          stroke="${spiderColor}"
+          stroke-width="1.6"
+          opacity="0.75"
+        />
+        <path
+          d="M -7 29 L 7 29"
+          stroke="${spiderColor}"
+          stroke-width="1.5"
+          opacity="0.7"
+        />
+        <path
+          d="M -5 41 L 5 41"
+          stroke="${spiderColor}"
+          stroke-width="1.4"
+          opacity="0.65"
+        />
+  
+        <circle cx="-4" cy="-20" r="1.8" fill="${spiderColor}" />
+        <circle cx="4" cy="-20" r="1.8" fill="${spiderColor}" />
+      </g>
     </g>
   `;
 
