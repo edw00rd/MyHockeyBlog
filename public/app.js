@@ -2565,6 +2565,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
 
   const pointAt = (index, radius, total) => {
     const angle = angleForIndex(index, total);
+
     return {
       x: cx + Math.cos(angle) * radius,
       y: cy + Math.sin(angle) * radius
@@ -2572,14 +2573,17 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
   };
 
   const gridPolygons = [];
+
   for (let level = 1; level <= levels; level += 1) {
     const radius = (maxRadius * level) / levels;
+
     const points = metrics
       .map((_, index) => {
         const p = pointAt(index, radius, metrics.length);
         return `${p.x},${p.y}`;
       })
       .join(" ");
+
     gridPolygons.push(
       `<polygon points="${points}" class="chirp-spider-grid-level" />`
     );
@@ -2588,7 +2592,16 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
   const axisLines = metrics
     .map((_, index) => {
       const p = pointAt(index, maxRadius, metrics.length);
-      return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" class="chirp-spider-axis-line" />`;
+
+      return `
+        <line
+          x1="${cx}"
+          y1="${cy}"
+          x2="${p.x}"
+          y2="${p.y}"
+          class="chirp-spider-axis-line"
+        />
+      `;
     })
     .join("");
 
@@ -2597,6 +2610,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
       const clamped = Math.max(0, Math.min(maxValue, Number(metric.value || 0)));
       const radius = (clamped / maxValue) * maxRadius;
       const p = pointAt(index, radius, metrics.length);
+
       return `${p.x},${p.y}`;
     })
     .join(" ");
@@ -2610,82 +2624,15 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
     (Math.max(0, Math.min(maxValue, Number(dominantMetric.value || 0))) / maxValue) *
     maxRadius;
 
-  const spiderPoint = pointAt(dominantIndex, dominantRadius, metrics.length);
+  const dominantPoint = pointAt(dominantIndex, dominantRadius, metrics.length);
+  const dotColor = dominantMetric.color || "#00d8ff";
 
-  const spiderColor = dominantMetric.color || "#00d8ff";
-
-  const spiderSvg = `
-    <g transform="translate(${spiderPoint.x}, ${spiderPoint.y})" class="chirp-spider-marker">
-      <g transform="translate(0, -18) scale(0.28)">
-        <g
-          fill="rgba(3, 10, 20, 0.96)"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linejoin="miter"
-          stroke-linecap="butt"
-          filter="drop-shadow(0 0 5px ${spiderColor})"
-        >
-          <!-- upper legs -->
-          <path d="M -18 -16 L -42 -46 L -45 -92 L -39 -92 L -35 -49 L -8 -19 Z" />
-          <path d="M 18 -16 L 42 -46 L 45 -92 L 39 -92 L 35 -49 L 8 -19 Z" />
-  
-          <path d="M -25 -6 L -68 -26 L -95 -70 L -89 -73 L -62 -35 L -8 -12 Z" />
-          <path d="M 25 -6 L 68 -26 L 95 -70 L 89 -73 L 62 -35 L 8 -12 Z" />
-  
-          <!-- middle legs -->
-          <path d="M -31 8 L -82 20 L -126 5 L -122 -2 L -79 10 L -10 2 Z" />
-          <path d="M 31 8 L 82 20 L 126 5 L 122 -2 L 79 10 L 10 2 Z" />
-  
-          <!-- lower legs -->
-          <path d="M -25 24 L -68 55 L -90 116 L -96 113 L -76 48 L -8 15 Z" />
-          <path d="M 25 24 L 68 55 L 90 116 L 96 113 L 76 48 L 8 15 Z" />
-  
-          <path d="M -14 42 L -38 82 L -34 142 L -41 142 L -48 79 L -5 34 Z" />
-          <path d="M 14 42 L 38 82 L 34 142 L 41 142 L 48 79 L 5 34 Z" />
-  
-          <!-- body -->
-          <path
-            d="
-              M 0 -34
-              C 26 -34 42 -17 42 8
-              C 42 26 29 38 13 42
-              C 30 52 42 73 39 96
-              C 35 124 18 144 0 144
-              C -18 144 -35 124 -39 96
-              C -42 73 -30 52 -13 42
-              C -29 38 -42 26 -42 8
-              C -42 -17 -26 -34 0 -34
-              Z
-            "
-          />
-  
-          <!-- tiny head points -->
-          <path d="M -12 -31 L -17 -47 L -5 -34 Z" />
-          <path d="M 12 -31 L 17 -47 L 5 -34 Z" />
-        </g>
-  
-        <!-- subtle glowing center detail -->
-        <g
-          stroke="${spiderColor}"
-          stroke-width="2"
-          stroke-linecap="round"
-          opacity="0.65"
-        >
-          <path d="M 0 45 L 0 126" />
-          <path d="M -13 66 L 13 66" />
-          <path d="M -15 84 L 15 84" />
-          <path d="M -12 103 L 12 103" />
-        </g>
-      </g>
-    </g>
-  `;
-  
   return `
     <svg
       class="chirp-spider-svg"
       viewBox="0 0 156 156"
       role="img"
-      aria-label="Chirp spider profile"
+      aria-label="Chirp profile graph"
     >
       ${gridPolygons.join("")}
       ${axisLines}
@@ -2693,7 +2640,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
       <polygon
         points="${shapePoints}"
         class="chirp-spider-shape"
-        style="--spider-color: ${spiderColor};"
+        style="--spider-color: ${dotColor};"
       />
 
       <circle
@@ -2703,7 +2650,23 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
         class="chirp-spider-center"
       />
 
-      ${spiderSvg}
+      <circle
+        cx="${dominantPoint.x}"
+        cy="${dominantPoint.y}"
+        r="5"
+        fill="${dotColor}"
+        opacity="0.95"
+        filter="drop-shadow(0 0 7px ${dotColor})"
+      />
+
+      <circle
+        cx="${dominantPoint.x}"
+        cy="${dominantPoint.y}"
+        r="9"
+        fill="${dotColor}"
+        opacity="0.18"
+        filter="drop-shadow(0 0 10px ${dotColor})"
+      />
     </svg>
   `;
 }
