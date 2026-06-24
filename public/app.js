@@ -2663,15 +2663,6 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
       />
 
       ${nodeCircles}
-
-      <circle
-        cx="${cx}"
-        cy="${cy}"
-        r="3.8"
-        fill="#00d8ff"
-        opacity="0.9"
-        filter="drop-shadow(0 0 7px #00d8ff)"
-      />
     </svg>
   `;
 }
