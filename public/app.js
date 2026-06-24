@@ -2614,193 +2614,71 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
 
   const spiderColor = dominantMetric.color || "#00d8ff";
 
-  const spiderSvg = `
-    <g transform="translate(${spiderPoint.x}, ${spiderPoint.y})" class="chirp-spider-marker">
-      <g transform="scale(0.48)">
+const spiderSvg = `
+  <g transform="translate(${spiderPoint.x}, ${spiderPoint.y})" class="chirp-spider-marker">
+    <g transform="translate(0, -18) scale(0.28)">
+      <g
+        fill="rgba(3, 10, 20, 0.96)"
+        stroke="${spiderColor}"
+        stroke-width="3"
+        stroke-linejoin="miter"
+        stroke-linecap="butt"
+        filter="drop-shadow(0 0 5px ${spiderColor})"
+      >
+        <!-- upper legs -->
+        <path d="M -18 -16 L -42 -46 L -45 -92 L -39 -92 L -35 -49 L -8 -19 Z" />
+        <path d="M 18 -16 L 42 -46 L 45 -92 L 39 -92 L 35 -49 L 8 -19 Z" />
+
+        <path d="M -25 -6 L -68 -26 L -95 -70 L -89 -73 L -62 -35 L -8 -12 Z" />
+        <path d="M 25 -6 L 68 -26 L 95 -70 L 89 -73 L 62 -35 L 8 -12 Z" />
+
+        <!-- middle legs -->
+        <path d="M -31 8 L -82 20 L -126 5 L -122 -2 L -79 10 L -10 2 Z" />
+        <path d="M 31 8 L 82 20 L 126 5 L 122 -2 L 79 10 L 10 2 Z" />
+
+        <!-- lower legs -->
+        <path d="M -25 24 L -68 55 L -90 116 L -96 113 L -76 48 L -8 15 Z" />
+        <path d="M 25 24 L 68 55 L 90 116 L 96 113 L 76 48 L 8 15 Z" />
+
+        <path d="M -14 42 L -38 82 L -34 142 L -41 142 L -48 79 L -5 34 Z" />
+        <path d="M 14 42 L 38 82 L 34 142 L 41 142 L 48 79 L 5 34 Z" />
+
+        <!-- body -->
         <path
-          d="M -11 -15 L -34 -54 L -31 -82"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
+          d="
+            M 0 -34
+            C 26 -34 42 -17 42 8
+            C 42 26 29 38 13 42
+            C 30 52 42 73 39 96
+            C 35 124 18 144 0 144
+            C -18 144 -35 124 -39 96
+            C -42 73 -30 52 -13 42
+            C -29 38 -42 26 -42 8
+            C -42 -17 -26 -34 0 -34
+            Z
+          "
         />
-        <path
-          d="M 11 -15 L 34 -54 L 31 -82"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-  
-        <path
-          d="M -17 -8 L -50 -35 L -75 -48"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-        <path
-          d="M 17 -8 L 50 -35 L 75 -48"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-  
-        <path
-          d="M -19 1 L -56 8 L -84 29"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-        <path
-          d="M 19 1 L 56 8 L 84 29"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-  
-        <path
-          d="M -13 13 L -38 43 L -44 82"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-        <path
-          d="M 13 13 L 38 43 L 44 82"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="3"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-  
-        <ellipse
-          cx="0"
-          cy="-17"
-          rx="12"
-          ry="14"
-          fill="rgba(3, 10, 20, 0.9)"
-          stroke="${spiderColor}"
-          stroke-width="2.5"
-        />
-  
-        <path
-          d="M -5 -31 L -10 -42 L -3 -34"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="2.5"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-        <path
-          d="M 5 -31 L 10 -42 L 3 -34"
-          fill="none"
-          stroke="${spiderColor}"
-          stroke-width="2.5"
-          stroke-linecap="butt"
-          stroke-linejoin="miter"
-        />
-  
-        <path
-          d="M 0 -3
-             C 18 -2 20 24 0 60
-             C -20 24 -18 -2 0 -3 Z"
-          fill="rgba(3, 10, 20, 0.92)"
-          stroke="${spiderColor}"
-          stroke-width="2.5"
-          stroke-linejoin="miter"
-        />
-  
-        <path
-          d="M 0 3 L 0 55"
-          stroke="${spiderColor}"
-          stroke-width="1.5"
-          opacity="0.9"
-        />
-  
-        <path
-          d="M -7 8 L 7 8"
-          stroke="${spiderColor}"
-          stroke-width="1.6"
-          opacity="0.8"
-        />
-        <path
-          d="M -8 18 L 8 18"
-          stroke="${spiderColor}"
-          stroke-width="1.6"
-          opacity="0.75"
-        />
-        <path
-          d="M -7 29 L 7 29"
-          stroke="${spiderColor}"
-          stroke-width="1.5"
-          opacity="0.7"
-        />
-        <path
-          d="M -5 41 L 5 41"
-          stroke="${spiderColor}"
-          stroke-width="1.4"
-          opacity="0.65"
-        />
-  
-        <circle cx="-4" cy="-20" r="1.8" fill="${spiderColor}" />
-        <circle cx="4" cy="-20" r="1.8" fill="${spiderColor}" />
+
+        <!-- tiny head points -->
+        <path d="M -12 -31 L -17 -47 L -5 -34 Z" />
+        <path d="M 12 -31 L 17 -47 L 5 -34 Z" />
+      </g>
+
+      <!-- subtle glowing center detail -->
+      <g
+        stroke="${spiderColor}"
+        stroke-width="2"
+        stroke-linecap="round"
+        opacity="0.65"
+      >
+        <path d="M 0 45 L 0 126" />
+        <path d="M -13 66 L 13 66" />
+        <path d="M -15 84 L 15 84" />
+        <path d="M -12 103 L 12 103" />
       </g>
     </g>
-  `;
-
-  return `
-    <svg
-      class="chirp-spider-svg"
-      viewBox="0 0 156 156"
-      width="156"
-      height="156"
-      aria-hidden="true"
-    >
-      <defs>
-        <filter id="chirpSpiderGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      ${gridPolygons.join("")}
-      ${axisLines}
-
-      <polygon
-        points="${shapePoints}"
-        class="chirp-spider-shape"
-        fill="${dominantMetric.color}22"
-        stroke="${dominantMetric.color}"
-        stroke-width="2.25"
-        filter="url(#chirpSpiderGlow)"
-      />
-
-      <circle
-        cx="${cx}"
-        cy="${cy}"
-        r="2.5"
-        fill="${dominantMetric.color}"
-      />
-
-      ${spiderSvg}
-    </svg>
-  `;
-}
+  </g>
+`;
 
 function renderChirpProfile(content) {
   const chirpCount = Number(content.chirp_count || 0);
