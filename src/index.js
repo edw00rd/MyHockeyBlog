@@ -1318,7 +1318,7 @@ async function createPost(request, env) {
       request,
       action: "create_post",
       userId: currentUser.user_id,
-      limit: 10,
+      limit: 1,
       windowSeconds: 3600
     });
 
