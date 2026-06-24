@@ -390,6 +390,125 @@ async function listUsers(env) {
   }
 }
 
+function getClientIp(request) {
+  const cfIp = String(request.headers.get("cf-connecting-ip") || "").trim();
+
+  if (cfIp) {
+    return cfIp;
+  }
+
+  const forwardedFor = String(request.headers.get("x-forwarded-for") || "").trim();
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+
+  return "unknown";
+}
+
+function hashRateLimitValue(value = "") {
+  const text = String(value || "");
+  let hash = 2166136261;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function getRateLimitKey(request, userId = "") {
+  const safeUserId = String(userId || "").trim();
+
+  if (safeUserId) {
+    return `user:${safeUserId}`;
+  }
+
+  return `ip:${hashRateLimitValue(getClientIp(request))}`;
+}
+
+async function enforceRateLimit(env, {
+  request,
+  action,
+  userId = "",
+  limit = 20,
+  windowSeconds = 60
+}) {
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const windowStart = Math.floor(nowMs / (windowSeconds * 1000)) * windowSeconds;
+  const rateKey = getRateLimitKey(request, userId);
+
+  await env.DB.prepare(
+    `
+    INSERT INTO rate_limits (
+      rate_key,
+      action,
+      window_start,
+      window_seconds,
+      request_count,
+      limit_count,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(rate_key, action, window_start)
+    DO UPDATE SET
+      request_count = request_count + 1,
+      limit_count = excluded.limit_count,
+      updated_at = excluded.updated_at
+    `
+  )
+    .bind(
+      rateKey,
+      action,
+      windowStart,
+      windowSeconds,
+      1,
+      limit,
+      now,
+      now
+    )
+    .run();
+
+  const row = await env.DB.prepare(
+    `
+    SELECT request_count
+    FROM rate_limits
+    WHERE rate_key = ?
+      AND action = ?
+      AND window_start = ?
+    LIMIT 1
+    `
+  )
+    .bind(rateKey, action, windowStart)
+    .first();
+
+  const requestCount = Number(row?.request_count || 0);
+
+  if (requestCount > limit) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil(windowStart + windowSeconds - Math.floor(nowMs / 1000))
+    );
+
+    return json(
+      {
+        ok: false,
+        error: "Too many requests. Slow your roll and try again shortly.",
+        action,
+        limit,
+        window_seconds: windowSeconds,
+        retry_after_seconds: retryAfter
+      },
+      429
+    );
+  }
+
+  return null;
+}
+
 function normalizePlainText(value = "", maxLength = 1000) {
   return String(value || "")
     .replace(/\r\n/g, "\n")
@@ -619,6 +738,17 @@ async function createUser(request, env) {
   try {
     const body = await readJsonBody(request);
 
+    const rateLimitResponse = await enforceRateLimit(env, {
+      request,
+      action: "create_user",
+      limit: 5,
+      windowSeconds: 3600
+    });
+    
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+    
     const termsResult = requireCommunityTermsAccepted(body);
 
     if (!termsResult.ok) {
@@ -862,13 +992,15 @@ async function createUser(request, env) {
 async function getPosts(request, env) {
   try {
     const currentUser = await getCurrentUser(request, env);
+
     const result = await env.DB.prepare(
       `
       SELECT
         posts.id,
         posts.title,
         posts.body,
-        COALESCE(posts.media_url, '') AS media_url,
+        posts.title,
+        posts.body,
         posts.post_type,
         posts.visibility,
         posts.comments_enabled,
@@ -1165,21 +1297,8 @@ async function createPost(request, env) {
       );
     }
     
-    const mediaResult = validateMediaUrlInput(body.media_url || body.video || "");
-    
-    if (!mediaResult.ok) {
-      return json(
-        {
-          ok: false,
-          error: mediaResult.error
-        },
-        400
-      );
-    }
-    
     const title = titleResult.value;
     const content = bodyResult.value;
-    const mediaUrl = mediaResult.value;
     const postType = String(body.post_type || "progress").trim();
     const visibility = String(body.visibility || "public").trim();
     const commentsEnabled = body.comments_enabled === false ? 0 : 1;
@@ -1193,7 +1312,19 @@ async function createPost(request, env) {
 
     const now = new Date().toISOString();
 
-   const currentUser = await getCurrentUser(request, env);
+    const currentUser = await getCurrentUser(request, env);
+
+    const rateLimitResponse = await enforceRateLimit(env, {
+      request,
+      action: "create_post",
+      userId: currentUser.user_id,
+      limit: 10,
+      windowSeconds: 3600
+    });
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const postId = crypto.randomUUID();
 
@@ -1204,7 +1335,6 @@ async function createPost(request, env) {
         author_user_id,
         title,
         body,
-        media_url,
         post_type,
         visibility,
         comments_enabled,
@@ -1213,7 +1343,7 @@ async function createPost(request, env) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
       .bind(
@@ -1221,7 +1351,6 @@ async function createPost(request, env) {
         currentUser.user_id,
         title,
         content,
-        mediaUrl,
         safePostType,
         safeVisibility,
         commentsEnabled,
@@ -1242,7 +1371,6 @@ async function createPost(request, env) {
           id: postId,
           title,
           body: content,
-          media_url: mediaUrl,
           post_type: safePostType,
           visibility: safeVisibility,
           comments_enabled: commentsEnabled === 1,
@@ -1659,6 +1787,18 @@ async function createComment(request, env, postId) {
     const now = new Date().toISOString();
     const currentUser = await getCurrentUser(request, env);
 
+    const rateLimitResponse = await enforceRateLimit(env, {
+      request,
+      action: "create_comment",
+      userId: currentUser.user_id,
+      limit: 30,
+      windowSeconds: 3600
+    });
+    
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const commentId = crypto.randomUUID();
 
     await env.DB.prepare(
@@ -1927,6 +2067,18 @@ async function createChirp(request, env) {
     const now = new Date().toISOString();
     const currentUser = await getCurrentUser(request, env);
 
+    const rateLimitResponse = await enforceRateLimit(env, {
+      request,
+      action: "create_chirp",
+      userId: currentUser.user_id,
+      limit: 120,
+      windowSeconds: 3600
+    });
+    
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+    
     const contentExists = await verifyChirpContentExists(env, contentType, contentId);
     
     if (!contentExists) {
