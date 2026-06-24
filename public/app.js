@@ -2679,6 +2679,33 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
       </g>
     </g>
   `;
+  
+  return `
+    <svg
+      class="chirp-spider-svg"
+      viewBox="0 0 156 156"
+      role="img"
+      aria-label="Chirp spider profile"
+    >
+      ${gridPolygons.join("")}
+      ${axisLines}
+
+      <polygon
+        points="${shapePoints}"
+        class="chirp-spider-shape"
+        style="--spider-color: ${spiderColor};"
+      />
+
+      <circle
+        cx="${cx}"
+        cy="${cy}"
+        r="3.8"
+        class="chirp-spider-center"
+      />
+
+      ${spiderSvg}
+    </svg>
+  `;
 }
 
 function renderChirpProfile(content) {
