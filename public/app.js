@@ -2679,6 +2679,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
       </g>
     </g>
   `;
+}
 
 function renderChirpProfile(content) {
   const chirpCount = Number(content.chirp_count || 0);
