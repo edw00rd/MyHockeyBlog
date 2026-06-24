@@ -2580,7 +2580,7 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
     const points = metrics
       .map((_, index) => {
         const p = pointAt(index, radius, metrics.length);
-        return `${p.x},${p.y}`;
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
       })
       .join(" ");
 
@@ -2597,35 +2597,51 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
         <line
           x1="${cx}"
           y1="${cy}"
-          x2="${p.x}"
-          y2="${p.y}"
+          x2="${p.x.toFixed(1)}"
+          y2="${p.y.toFixed(1)}"
           class="chirp-spider-axis-line"
         />
       `;
     })
     .join("");
 
-  const shapePoints = metrics
-    .map((metric, index) => {
-      const clamped = Math.max(0, Math.min(maxValue, Number(metric.value || 0)));
-      const radius = (clamped / maxValue) * maxRadius;
-      const p = pointAt(index, radius, metrics.length);
+  const plotPoints = metrics.map((metric, index) => {
+    const clamped = Math.max(0, Math.min(maxValue, Number(metric.value || 0)));
+    const radius = (clamped / maxValue) * maxRadius;
+    const point = pointAt(index, radius, metrics.length);
 
-      return `${p.x},${p.y}`;
-    })
+    return {
+      ...metric,
+      x: point.x,
+      y: point.y,
+      clamped
+    };
+  });
+
+  const shapePoints = plotPoints
+    .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
     .join(" ");
 
-  const dominantIndex = Math.max(
-    0,
-    metrics.findIndex((metric) => metric.key === dominantMetric.key)
-  );
+  const dominantKey = dominantMetric?.key || "";
+  const dominantColor = dominantMetric?.color || "#00d8ff";
 
-  const dominantRadius =
-    (Math.max(0, Math.min(maxValue, Number(dominantMetric.value || 0))) / maxValue) *
-    maxRadius;
+  const nodeCircles = plotPoints
+    .map((point) => {
+      const isDominant = point.key === dominantKey;
+      const nodeColor = point.color || "#00d8ff";
 
-  const dominantPoint = pointAt(dominantIndex, dominantRadius, metrics.length);
-  const dotColor = dominantMetric.color || "#00d8ff";
+      return `
+        <circle
+          cx="${point.x.toFixed(1)}"
+          cy="${point.y.toFixed(1)}"
+          r="${isDominant ? "4.4" : "2.8"}"
+          fill="${nodeColor}"
+          opacity="${point.clamped > 0 ? "0.95" : "0.35"}"
+          filter="drop-shadow(0 0 ${isDominant ? "8px" : "4px"} ${nodeColor})"
+        />
+      `;
+    })
+    .join("");
 
   return `
     <svg
@@ -2639,33 +2655,22 @@ function renderChirpSpiderSvg(metrics, dominantMetric) {
 
       <polygon
         points="${shapePoints}"
-        class="chirp-spider-shape"
-        style="--spider-color: ${dotColor};"
+        fill="rgba(0, 216, 255, 0.12)"
+        stroke="${dominantColor}"
+        stroke-width="2.3"
+        stroke-linejoin="round"
+        filter="drop-shadow(0 0 8px ${dominantColor})"
       />
+
+      ${nodeCircles}
 
       <circle
         cx="${cx}"
         cy="${cy}"
         r="3.8"
-        class="chirp-spider-center"
-      />
-
-      <circle
-        cx="${dominantPoint.x}"
-        cy="${dominantPoint.y}"
-        r="5"
-        fill="${dotColor}"
-        opacity="0.95"
-        filter="drop-shadow(0 0 7px ${dotColor})"
-      />
-
-      <circle
-        cx="${dominantPoint.x}"
-        cy="${dominantPoint.y}"
-        r="9"
-        fill="${dotColor}"
-        opacity="0.18"
-        filter="drop-shadow(0 0 10px ${dotColor})"
+        fill="#00d8ff"
+        opacity="0.9"
+        filter="drop-shadow(0 0 7px #00d8ff)"
       />
     </svg>
   `;
