@@ -733,6 +733,12 @@ function renderSituationRoom(reviews) {
       const body = getReviewBody(review);
       const typeLabel = getReviewTypeLabel(review);
       const reasonLabel = formatReviewReason(review.opened_reason);
+      const reviewBodyHtml = body
+        ? renderPostBodyText(body)
+        : "No preview available.";
+      const reviewMediaHtml = body
+        ? renderPostMedia(body)
+        : "";
       const completed = Number(review.reviews_completed || 0);
       const needed = Number(review.reviews_needed || 3);
       const available = Number(review.tokens_available || 0);
@@ -759,7 +765,8 @@ function renderSituationRoom(reviews) {
           </div>
 
           <div class="review-preview">
-            <p>${escapeHtml(body || "No preview available.")}</p>
+            <p class="post-body-text">${reviewBodyHtml}</p>
+            ${reviewMediaHtml}
           </div>
 
           <div class="review-actions">
