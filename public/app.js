@@ -608,14 +608,7 @@ function renderModerationBanner(content, contentType = "post") {
   const reason = String(content.moderation_reason || "");
 
   if (status === "visible" && reason === "review_unbenched") {
-    return `
-      <div class="box-banner review-cleared">
-        <div>
-          <strong>✅ Review Complete: Waved Off</strong>
-          <p>The Situation Room reviewed this ${contentType} and returned it to the feed.</p>
-        </div>
-      </div>
-    `;
+    return "";
   }
 
   if (status === "visible") return "";
@@ -2461,7 +2454,9 @@ function getRentARefRulingLabel(ruling = "play_on") {
     play_on: "Play On",
     tone_check: "Tone Check",
     under_review: "Under Review",
-    penalty: "Sent to the Box"
+    penalty: "Sent to the Box",
+    review_waved_off: "Review Complete: Waved Off",
+    review_call_stands: "Call Stands"
   };
 
   return labels[ruling] || "Play On";
