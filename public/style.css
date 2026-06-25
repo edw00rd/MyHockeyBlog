@@ -902,6 +902,20 @@ textarea:focus {
   line-height: 1.5;
 }
 
+.review-preview .post-media-list {
+  width: min(420px, 100%);
+  margin-top: 0.85rem;
+}
+
+.review-preview .post-media-youtube {
+  width: min(420px, 100%);
+}
+
+.review-preview .post-media-image img,
+.review-preview .post-media-video video {
+  max-height: 260px;
+}
+
 .review-actions {
   display: flex;
   flex-wrap: wrap;
