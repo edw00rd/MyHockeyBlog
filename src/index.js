@@ -4334,13 +4334,6 @@ async function applyReviewDecision(env, review, decision, now) {
       )
       .run();
 
-    await updateRentARefRulingAfterReview(env, {
-      contentType: "post",
-      contentId: review.content_id,
-      decision,
-      now
-    });
-
     return;
   }
 
@@ -4365,14 +4358,9 @@ async function applyReviewDecision(env, review, decision, now) {
         review.content_id
       )
       .run();
-
-    await updateRentARefRulingAfterReview(env, {
-      contentType: "comment",
-      contentId: review.content_id,
-      decision,
-      now
-    });
   }
+}
+
 async function getProfileCommunityVibe(env, username) {
   try {
     const now = new Date().toISOString();
