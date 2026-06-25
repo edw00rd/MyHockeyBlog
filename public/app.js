@@ -2676,7 +2676,7 @@ function renderChirpProfile(content) {
   const metrics = getChirpProfileMetrics(content);
   const dominantMetric = getDominantChirpMetric(metrics);
 
-  const rulingKey =
+  let rulingKey =
     String(
       content.rent_a_ref_ruling ||
       content.rent_a_ref_ruling_key ||
@@ -2684,11 +2684,24 @@ function renderChirpProfile(content) {
       ""
     ).trim() || "play_on";
 
+  const moderationStatus = String(content.moderation_status || "visible");
+  const moderationReason = String(content.moderation_reason || "");
+
+  if (moderationStatus === "visible" && moderationReason === "review_unbenched") {
+    rulingKey = "review_waved_off";
+  }
+
+  if (moderationReason === "review_keep_benched") {
+    rulingKey = "review_call_stands";
+  }
+
   const rulingLabelMap = {
     play_on: "Play On",
     tone_check: "Tone Check",
     penalty: "Sent to the Box",
-    under_review: "Under Review"
+    under_review: "Under Review",
+    review_waved_off: "Review Complete: Waved Off",
+    review_call_stands: "Call Stands"
   };
 
   const rulingLabel =
@@ -2697,21 +2710,31 @@ function renderChirpProfile(content) {
     rulingLabelMap[rulingKey] ||
     "Play On";
 
-  const avatarKey =
+  let avatarKey =
     content.avatar_key ||
     content.rent_a_ref_avatar_key ||
     (typeof getRentARefAvatarKey === "function"
       ? getRentARefAvatarKey(content)
       : "ref-img1.png");
 
-  const avatarSrc = avatarKey || "ref-img1.png";
-
-  const rulingMessage =
+  let rulingMessage =
     String(
       content.rent_a_ref_message ||
       content.ruling_message ||
       ""
     ).trim() || "Keep chirping. No call on the play.";
+
+  if (rulingKey === "review_waved_off") {
+    rulingMessage = "The Situation Room reviewed this play and waved it off. Play on.";
+    avatarKey = avatarKey || "ref-img1.png";
+  }
+
+  if (rulingKey === "review_call_stands") {
+    rulingMessage = "The Situation Room reviewed this play and kept the call on the ice. Call stands.";
+    avatarKey = "ref-img4.png";
+  }
+
+  const avatarSrc = avatarKey || "ref-img1.png";
 
   const glowFor = (value) => {
     const score = Math.max(0, Math.min(5, Number(value || 0)));
