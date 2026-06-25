@@ -4230,6 +4230,64 @@ async function resolveReviewIfReady(env, review, now) {
   };
 }
 
+async function updateRentARefRulingAfterReview(env, {
+  contentType,
+  contentId,
+  decision,
+  now
+}) {
+  let rulingKey = "play_on";
+  let rulingMessage = "The Situation Room reviewed this play. Play on.";
+  let avatarKey = getStableRefVariant(contentId);
+
+  if (decision === "unbench") {
+    rulingKey = "review_waved_off";
+    rulingMessage = "The Situation Room reviewed this play and waved it off. Play on.";
+    avatarKey = getStableRefVariant(contentId);
+  }
+
+  if (decision === "keep_benched") {
+    rulingKey = "review_call_stands";
+    rulingMessage = "The Situation Room reviewed this play and kept the call on the ice. Call stands.";
+    avatarKey = "ref-img4.png";
+  }
+
+  await env.DB.prepare(
+    `
+    INSERT INTO rent_a_ref_rulings (
+      id,
+      content_type,
+      content_id,
+      ruling_key,
+      ruling_message,
+      avatar_key,
+      last_comment_id,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(content_type, content_id)
+    DO UPDATE SET
+      ruling_key = excluded.ruling_key,
+      ruling_message = excluded.ruling_message,
+      avatar_key = excluded.avatar_key,
+      updated_at = excluded.updated_at
+    `
+  )
+    .bind(
+      crypto.randomUUID(),
+      contentType,
+      contentId,
+      rulingKey,
+      rulingMessage,
+      avatarKey,
+      null,
+      now,
+      now
+    )
+    .run();
+}
+
 async function applyReviewDecision(env, review, decision, now) {
   let moderationStatus = "under_review";
   let moderationReason = `review_${decision}`;
@@ -4276,6 +4334,13 @@ async function applyReviewDecision(env, review, decision, now) {
       )
       .run();
 
+    await updateRentARefRulingAfterReview(env, {
+      contentType: "post",
+      contentId: review.content_id,
+      decision,
+      now
+    });
+
     return;
   }
 
@@ -4300,9 +4365,14 @@ async function applyReviewDecision(env, review, decision, now) {
         review.content_id
       )
       .run();
-  }
-}
 
+    await updateRentARefRulingAfterReview(env, {
+      contentType: "comment",
+      contentId: review.content_id,
+      decision,
+      now
+    });
+  }
 async function getProfileCommunityVibe(env, username) {
   try {
     const now = new Date().toISOString();
