@@ -79,6 +79,13 @@ export default {
     if (url.pathname === "/api/posts" && method === "POST") {
       return createPost(request, env);
     }
+    
+    const postDeleteMatch = url.pathname.match(/^\/api\/posts\/([^/]+)$/);
+    
+    if (postDeleteMatch && method === "DELETE") {
+      return deletePost(request, env, postDeleteMatch[1]);
+    }
+    
     const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments$/);
     
     if (commentsMatch && method === "GET") {
@@ -1008,6 +1015,11 @@ async function getPosts(request, env) {
         posts.published_at,
         posts.created_at,
         posts.updated_at,
+        posts.author_user_id,
+        CASE
+          WHEN posts.author_user_id = ? THEN 1
+          ELSE 0
+        END AS current_user_can_delete,
         COALESCE(posts.moderation_status, 'visible') AS moderation_status,
         COALESCE(posts.moderation_reason, '') AS moderation_reason,
         posts.moderated_at,
@@ -1218,12 +1230,13 @@ async function getPosts(request, env) {
       JOIN users ON users.id = posts.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
       WHERE posts.visibility = 'public'
-        AND posts.status = 'published'
+        AND posts.status IN ('published', 'deleted_by_user')
       ORDER BY posts.created_at DESC
       LIMIT 25
       `
     )
       .bind(
+        currentUser.user_id,
         RENT_A_REF_USER_ID,
         RENT_A_REF_USER_ID,
         currentUser.user_id,
@@ -1392,6 +1405,181 @@ async function createPost(request, env) {
   }
 }
 
+async function deletePost(request, env, postId) {
+  try {
+    const safePostId = String(postId || "").trim();
+
+    if (!safePostId) {
+      return json(
+        {
+          ok: false,
+          error: "Post ID is required."
+        },
+        400
+      );
+    }
+
+    const currentUser = await getCurrentUser(request, env);
+    const now = new Date().toISOString();
+
+    const post = await env.DB.prepare(
+      `
+      SELECT
+        id,
+        author_user_id,
+        title,
+        status
+      FROM posts
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+      .bind(safePostId)
+      .first();
+
+    if (!post) {
+      return json(
+        {
+          ok: false,
+          error: "Post not found."
+        },
+        404
+      );
+    }
+
+    if (post.author_user_id !== currentUser.user_id) {
+      return json(
+        {
+          ok: false,
+          error: "You can only delete posts that you created."
+        },
+        403
+      );
+    }
+
+    if (post.status === "deleted_by_user") {
+      return json({
+        ok: true,
+        message: "Post was already deleted by the user.",
+        post_id: safePostId,
+        status: "deleted_by_user"
+      });
+    }
+
+    await env.DB.prepare(
+      `
+      UPDATE posts
+      SET
+        title = '[deleted by user]',
+        body = 'This post was deleted by the user.',
+        status = 'deleted_by_user',
+        comments_enabled = 0,
+        moderation_status = 'visible',
+        moderation_reason = '',
+        moderated_at = NULL,
+        moderated_by_user_id = NULL,
+        updated_at = ?
+      WHERE id = ?
+      `
+    )
+      .bind(now, safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM post_tags
+      WHERE post_id = ?
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM content_chirps
+      WHERE content_type = 'post'
+        AND content_id = ?
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM rent_a_ref_calls
+      WHERE content_type = 'post'
+        AND content_id = ?
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM rent_a_ref_rulings
+      WHERE content_type = 'post'
+        AND content_id = ?
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM content_review_participants
+      WHERE review_id IN (
+        SELECT id
+        FROM content_reviews
+        WHERE content_type = 'post'
+          AND content_id = ?
+      )
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM content_review_tokens
+      WHERE review_id IN (
+        SELECT id
+        FROM content_reviews
+        WHERE content_type = 'post'
+          AND content_id = ?
+      )
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    await env.DB.prepare(
+      `
+      DELETE FROM content_reviews
+      WHERE content_type = 'post'
+        AND content_id = ?
+      `
+    )
+      .bind(safePostId)
+      .run();
+
+    return json({
+      ok: true,
+      message: "Post deleted by user.",
+      post_id: safePostId,
+      status: "deleted_by_user"
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        message: "Failed to delete post.",
+        error: error.message
+      },
+      500
+    );
+  }
+}
+
 async function getComments(request, env, postId) {
   try {
     const currentUser = await getCurrentUser(request, env);
@@ -1401,7 +1589,7 @@ async function getComments(request, env, postId) {
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
-        AND status = 'published'
+        AND status IN ('published', 'deleted_by_user')
       LIMIT 1
       `
     )
@@ -1418,6 +1606,15 @@ async function getComments(request, env, postId) {
       );
     }
 
+    if (post.status === "deleted_by_user") {
+      return json({
+        ok: true,
+        post_id: postId,
+        comments_enabled: false,
+        comments: []
+      });
+    }
+    
     const result = await env.DB.prepare(
       `
       SELECT
@@ -1691,11 +1888,11 @@ async function createComment(request, env, postId) {
     const parentCommentId = String(body.parent_comment_id || "").trim() || null;
     const post = await env.DB.prepare(
       `
-      SELECT id, comments_enabled
+      SELECT id, comments_enabled, status
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
-        AND status = 'published'
+        AND status IN ('published', 'deleted_by_user')
       LIMIT 1
       `
     )
@@ -1712,6 +1909,16 @@ async function createComment(request, env, postId) {
       );
     }
 
+    if (post.status === "deleted_by_user") {
+      return json(
+        {
+          ok: false,
+          error: "Cannot comment on a post that was deleted by the user."
+        },
+        403
+      );
+    }
+    
     if (Number(post.comments_enabled) !== 1) {
       return json(
         {
