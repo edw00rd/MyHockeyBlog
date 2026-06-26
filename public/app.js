@@ -1153,6 +1153,20 @@ function renderPosts(posts) {
     const postIsBoxed = moderationStatus !== "visible";
     const moderationBannerHtml = renderModerationBanner(post, "post");
     const postMediaHtml = renderPostMedia(post.body || "");
+    const postDeletedByUser = String(post.status || "") === "deleted_by_user";
+    const currentUserCanDelete = Number(post.current_user_can_delete || 0) === 1;
+    const deletePostButtonHtml =
+      currentUserCanDelete && !postDeletedByUser
+        ? `
+          <button
+            class="button ghost delete-post-button"
+            type="button"
+            data-post-id="${escapeHtml(post.id)}"
+          >
+            Delete post
+          </button>
+        `
+        : "";
 
     card.innerHTML = `
       <div class="post-meta">
@@ -1162,7 +1176,7 @@ function renderPosts(posts) {
         <span class="badge">${formatDate(post.published_at || post.created_at)}</span>
       </div>
 
-      <h3>${escapeHtml(post.title || "Untitled post")}</h3>
+      <h3>${postDeletedByUser ? "Deleted post" : escapeHtml(post.title || "Untitled post")}</h3>
       
       ${moderationBannerHtml}
       
@@ -1171,20 +1185,36 @@ function renderPosts(posts) {
         class="boxed-content"
         ${postIsBoxed ? "hidden" : ""}
       >
-      <p class="muted post-body-text">${renderPostBodyText(post.body || "")}</p>
+      ${
+        postDeletedByUser
+          ? `
+            <div class="deleted-placeholder">
+              <strong>Deleted by user</strong>
+              <p>This post was deleted by the user.</p>
+            </div>
+          `
+          : `
+            <p class="muted post-body-text">${renderPostBodyText(post.body || "")}</p>
       
-      ${postMediaHtml}
-                  
-      ${tagsHtml}
-
-      <div class="post-meta">
-        ${renderChirpPicker({
-          contentType: "post",
-          contentId: post.id,
-          chirpCount,
-          selectedChirpType: post.user_chirp_type || ""
-        })}
-      </div>
+            ${postMediaHtml}
+                        
+            ${tagsHtml}
+      
+            <div class="post-meta">
+              ${renderChirpPicker({
+                contentType: "post",
+                contentId: post.id,
+                chirpCount,
+                selectedChirpType: post.user_chirp_type || ""
+              })}
+              ${deletePostButtonHtml}
+            </div>
+      
+            <div class="chirp-profile-wrap">
+              ${chirpProfileHtml}
+            </div>
+          `
+      }
 
       <div class="chirp-profile-wrap">
         ${chirpProfileHtml}
@@ -1198,7 +1228,7 @@ function renderPosts(posts) {
 
       <div class="comments-panel" data-comments-for="${escapeHtml(post.id)}">
         ${
-          Number(post.comments_enabled) === 1
+          Number(post.comments_enabled) === 1 && !postDeletedByUser
             ? `
               <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
                 Comments (${Number(post.comment_count || 0)})
@@ -1215,9 +1245,13 @@ function renderPosts(posts) {
               </form>
             `
             : `
-              <p class="muted small">
-                Comments are disabled for this post. Rent-a-Ref rulings appear in the Chirp Profile above.
-              </p>
+            <p class="muted small">
+              ${
+                postDeletedByUser
+                  ? "This post was deleted by the user. Comments are closed."
+                  : "Comments are disabled for this post. Rent-a-Ref rulings appear in the Chirp Profile above."
+              }
+            </p>
             `
         }
       </div>
@@ -1231,6 +1265,7 @@ function renderPosts(posts) {
   wireChirpPickerControls();
   wireChirpProfileToggles();
   wireModerationControls();
+  wirePostDeleteControls();
 }
 
 function renderEventsPlaceholder() {
@@ -2181,6 +2216,43 @@ function renderChirpPicker({
       </div>
     </div>
   `;
+}
+
+function wirePostDeleteControls() {
+  document.querySelectorAll(".delete-post-button").forEach((button) => {
+    if (button.dataset.wired) return;
+    button.dataset.wired = "true";
+
+    button.addEventListener("click", async () => {
+      const postId = button.dataset.postId;
+
+      if (!postId) return;
+
+      const confirmed = confirm(
+        "Delete this post? The post will be replaced with a deleted-by-user placeholder."
+      );
+
+      if (!confirmed) return;
+
+      try {
+        button.disabled = true;
+        button.textContent = "Deleting...";
+
+        await fetchJson(`/api/posts/${encodeURIComponent(postId)}`, {
+          method: "DELETE",
+          body: JSON.stringify({})
+        });
+
+        await loadHomepage();
+      } catch (error) {
+        alert(`Could not delete post: ${error.message}`);
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent = "Delete post";
+      }
+    });
+  });
 }
 
 function wireChirpPickerControls() {
