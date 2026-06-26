@@ -1844,6 +1844,26 @@ textarea:focus {
   z-index: 500;
 }
 
+.deleted-placeholder {
+  border: 1px dashed rgba(159, 177, 200, 0.35);
+  border-radius: 0.9rem;
+  padding: 0.95rem;
+  background: rgba(5, 11, 20, 0.42);
+  color: var(--muted);
+}
+
+.deleted-placeholder strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+  font-weight: 950;
+}
+
+.deleted-placeholder p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .chirp-profile-shell {
   margin-top: 0.55rem;
 }
