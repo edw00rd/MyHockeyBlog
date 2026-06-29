@@ -1585,7 +1585,7 @@ async function getComments(request, env, postId) {
     const currentUser = await getCurrentUser(request, env);
     const post = await env.DB.prepare(
       `
-      SELECT id, comments_enabled
+      SELECT id, comments_enabled, status
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
