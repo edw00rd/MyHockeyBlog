@@ -1153,7 +1153,7 @@ function renderPosts(posts) {
     const postIsBoxed = moderationStatus !== "visible";
     const moderationBannerHtml = renderModerationBanner(post, "post");
     const postMediaHtml = renderPostMedia(post.body || "");
-    const postDeletedByUser = String(post.status || "") === "deleted_by_user";
+    const postDeletedByUser = String(post.status || "") === "deleted";
     const currentUserCanDelete = Number(post.current_user_can_delete || 0) === 1;
     const deletePostButtonHtml =
       currentUserCanDelete && !postDeletedByUser
