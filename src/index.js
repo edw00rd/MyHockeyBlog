@@ -1566,7 +1566,7 @@ async function deletePost(request, env, postId) {
       ok: true,
       message: "Post deleted by user.",
       post_id: safePostId,
-      status: "deleted_by_user"
+      status: "deleted"
     });
   } catch (error) {
     return json(
