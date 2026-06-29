@@ -1230,7 +1230,7 @@ async function getPosts(request, env) {
       JOIN users ON users.id = posts.author_user_id
       LEFT JOIN profiles ON profiles.user_id = users.id
       WHERE posts.visibility = 'public'
-        AND posts.status IN ('published', 'deleted_by_user')
+        AND posts.status IN ('published', 'deleted')
       ORDER BY posts.created_at DESC
       LIMIT 25
       `
@@ -1457,12 +1457,12 @@ async function deletePost(request, env, postId) {
       );
     }
 
-    if (post.status === "deleted_by_user") {
+    if (post.status === "deleted") {
       return json({
         ok: true,
         message: "Post was already deleted by the user.",
         post_id: safePostId,
-        status: "deleted_by_user"
+        status: "deleted"
       });
     }
 
@@ -1472,7 +1472,7 @@ async function deletePost(request, env, postId) {
       SET
         title = '[deleted by user]',
         body = 'This post was deleted by the user.',
-        status = 'deleted_by_user',
+        status = 'deleted',
         comments_enabled = 0,
         moderation_status = 'visible',
         moderation_reason = '',
@@ -1589,7 +1589,7 @@ async function getComments(request, env, postId) {
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
-        AND status IN ('published', 'deleted_by_user')
+        AND status IN ('published', 'deleted')
       LIMIT 1
       `
     )
@@ -1606,7 +1606,7 @@ async function getComments(request, env, postId) {
       );
     }
 
-    if (post.status === "deleted_by_user") {
+    if (post.status === "deleted") {
       return json({
         ok: true,
         post_id: postId,
@@ -1892,7 +1892,7 @@ async function createComment(request, env, postId) {
       FROM posts
       WHERE id = ?
         AND visibility = 'public'
-        AND status IN ('published', 'deleted_by_user')
+        AND status IN ('published', 'deleted')
       LIMIT 1
       `
     )
@@ -1909,7 +1909,7 @@ async function createComment(request, env, postId) {
       );
     }
 
-    if (post.status === "deleted_by_user") {
+    if (post.status === "deleted") {
       return json(
         {
           ok: false,
