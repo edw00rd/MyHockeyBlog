@@ -1216,10 +1216,6 @@ function renderPosts(posts) {
           `
       }
 
-      <div class="chirp-profile-wrap">
-        ${chirpProfileHtml}
-      </div>
-
       <p class="muted small">
         Posted by ${escapeHtml(author)}
         ${post.author_position ? ` • ${escapeHtml(post.author_position)}` : ""}
