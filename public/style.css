@@ -1767,9 +1767,46 @@ textarea:focus {
   padding-right: 0.85rem;
 }
 
+.post-delete-icon {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 8;
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(255, 43, 43, 0.32);
+  border-radius: 999px;
+  background: rgba(5, 11, 20, 0.72);
+  color: #ffb8b8;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  box-shadow:
+    0 0 0 1px rgba(255, 43, 43, 0.08) inset,
+    0 0 12px rgba(255, 43, 43, 0.08);
+}
+
+.post-delete-icon:hover {
+  border-color: rgba(255, 43, 43, 0.72);
+  background: rgba(255, 43, 43, 0.12);
+  transform: translateY(-1px);
+}
+
+.post-delete-icon:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+
 .post-card .chirp-picker {
   left: 1rem;
   bottom: -0.95rem;
+}
+
+.post-card > .post-meta:first-of-type {
+  padding-right: 2.5rem;
 }
 
 .comment-body-wrap .chirp-picker {
