@@ -1208,16 +1208,8 @@ function renderPosts(posts) {
                 contentType: "post",
                 contentId: post.id,
                 chirpCount,
-                <div class="post-meta">
-                  ${renderChirpPicker({
-                    contentType: "post",
-                    contentId: post.id,
-                    chirpCount,
-                    selectedChirpType: post.user_chirp_type || ""
-                  })}
-                </div>
+                selectedChirpType: post.user_chirp_type || ""
               })}
-              ${deletePostButtonHtml}
             </div>
       
             <div class="chirp-profile-wrap">
