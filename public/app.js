@@ -1159,23 +1159,26 @@ function renderPosts(posts) {
       currentUserCanDelete && !postDeletedByUser
         ? `
           <button
-            class="button ghost delete-post-button"
+            class="post-delete-icon delete-post-button"
             type="button"
             data-post-id="${escapeHtml(post.id)}"
+            aria-label="Delete post"
+            title="Delete post"
           >
-            Delete post
+            🗑️
           </button>
         `
         : "";
 
     card.innerHTML = `
+      ${deletePostButtonHtml}
+    
       <div class="post-meta">
         <span class="badge ${escapeHtml(post.visibility)}">${escapeHtml(post.visibility)}</span>
         <span class="badge">${escapeHtml(post.post_type || "post")}</span>
         <span class="badge">comments: ${commentsStatus}</span>
         <span class="badge">${formatDate(post.published_at || post.created_at)}</span>
       </div>
-
       <h3>${postDeletedByUser ? "Deleted post" : escapeHtml(post.title || "Untitled post")}</h3>
       
       ${moderationBannerHtml}
@@ -1205,7 +1208,14 @@ function renderPosts(posts) {
                 contentType: "post",
                 contentId: post.id,
                 chirpCount,
-                selectedChirpType: post.user_chirp_type || ""
+                <div class="post-meta">
+                  ${renderChirpPicker({
+                    contentType: "post",
+                    contentId: post.id,
+                    chirpCount,
+                    selectedChirpType: post.user_chirp_type || ""
+                  })}
+                </div>
               })}
               ${deletePostButtonHtml}
             </div>
