@@ -1191,9 +1191,13 @@ function renderPosts(posts) {
       ${
         postDeletedByUser
           ? `
-            <div class="deleted-placeholder">
-              <strong>Deleted by user</strong>
+            <div class="deleted-placeholder deleted-post-tombstone">
+              <div class="deleted-placeholder-title-row">
+                <strong>[Deleted post]</strong>
+                <span aria-hidden="true">🪦</span>
+              </div>
               <p>This post was deleted by the user.</p>
+              <p class="muted small">Comments remain interactive. New comments are closed.</p>
             </div>
           `
           : `
@@ -1226,31 +1230,39 @@ function renderPosts(posts) {
 
       <div class="comments-panel" data-comments-for="${escapeHtml(post.id)}">
         ${
-          Number(post.comments_enabled) === 1 && !postDeletedByUser
+          postDeletedByUser
             ? `
               <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
                 Comments (${Number(post.comment_count || 0)})
               </button>
-      
+        
               <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
-      
-              <form class="comment-form" data-post-id="${escapeHtml(post.id)}" hidden>
-                <label>
-                  Add a comment
-                  <input name="comment" type="text" placeholder="Write a supportive note or feedback..." required />
-                </label>
-                <button class="button secondary" type="submit">Post comment</button>
-              </form>
+        
+              <p class="muted small">
+                New comments are closed because this post was deleted by the user.
+              </p>
             `
-            : `
-            <p class="muted small">
-              ${
-                postDeletedByUser
-                  ? "This post was deleted by the user. Comments are closed."
-                  : "Comments are disabled for this post. Rent-a-Ref rulings appear in the Chirp Profile above."
-              }
-            </p>
-            `
+            : Number(post.comments_enabled) === 1
+              ? `
+                <button class="button ghost comment-toggle" type="button" data-post-id="${escapeHtml(post.id)}">
+                  Comments (${Number(post.comment_count || 0)})
+                </button>
+        
+                <div class="comments-list" id="comments-${escapeHtml(post.id)}" hidden></div>
+        
+                <form class="comment-form" data-post-id="${escapeHtml(post.id)}" hidden>
+                  <label>
+                    Add a comment
+                    <input name="comment" type="text" placeholder="Write a supportive note or feedback..." required />
+                  </label>
+                  <button class="button secondary" type="submit">Post comment</button>
+                </form>
+              `
+              : `
+                <p class="muted small">
+                  Comments are disabled for this post. Rent-a-Ref rulings appear in the Chirp Profile above.
+                </p>
+              `
         }
       </div>
     </div>
