@@ -2128,30 +2128,30 @@ function renderCollapsibleChirpProfile(profile, label = "Chirp Profile") {
 
 function getChirpButtonImage(contentType = "", contentId = "") {
   const rightFacingImages = [
-    "chirp-btn00.png",
-    "chirp-btn01.png",
-    "chirp-btn02.png",
-    "chirp-btn03.png",
-    "chirp-btn04.png",
-    "chirp-btn05.png",
-    "chirp-btn06.png",
-    "chirp-btn07.png",
-    "chirp-btn08.png",
-    "chirp-btn09.png",
-    "chirp-btn10.png"
+    "/media/chirp-btn/chirp-btn00.png",
+    "/media/chirp-btn/chirp-btn01.png",
+    "/media/chirp-btn/chirp-btn02.png",
+    "/media/chirp-btn/chirp-btn03.png",
+    "/media/chirp-btn/chirp-btn04.png",
+    "/media/chirp-btn/chirp-btn05.png",
+    "/media/chirp-btn/chirp-btn06.png",
+    "/media/chirp-btn/chirp-btn07.png",
+    "/media/chirp-btn/chirp-btn08.png",
+    "/media/chirp-btn/chirp-btn09.png",
+    "/media/chirp-btn/chirp-btn10.png"
   ];
 
   const leftFacingImages = [
-    "chirp-btn11.png",
-    "chirp-btn12.png",
-    "chirp-btn13.png",
-    "chirp-btn14.png",
-    "chirp-btn15.png",
-    "chirp-btn16.png",
-    "chirp-btn17.png",
-    "chirp-btn18.png",
-    "chirp-btn19.png",
-    "chirp-btn20.png"
+    "/media/chirp-btn/chirp-btn11.png",
+    "/media/chirp-btn/chirp-btn12.png",
+    "/media/chirp-btn/chirp-btn13.png",
+    "/media/chirp-btn/chirp-btn14.png",
+    "/media/chirp-btn/chirp-btn15.png",
+    "/media/chirp-btn/chirp-btn16.png",
+    "/media/chirp-btn/chirp-btn17.png",
+    "/media/chirp-btn/chirp-btn18.png",
+    "/media/chirp-btn/chirp-btn19.png",
+    "/media/chirp-btn/chirp-btn20.png"
   ];
 
   const seed = `${contentType}:${contentId}`;
@@ -2209,7 +2209,7 @@ function renderChirpPicker({
       >
         <img
           class="chirp-icon-art"
-          src="/${escapeHtml(chirpButtonImage)}"
+          src="${escapeHtml(chirpButtonImage)}"
           alt=""
           aria-hidden="true"
         />
@@ -2476,6 +2476,20 @@ function renderChirpRadar(profile) {
   `;
 }
 
+function getRentARefImageSrc(avatarKey = "") {
+  const safeAvatarKey = String(avatarKey || "ref-img1.png").trim();
+
+  if (!safeAvatarKey) {
+    return "/media/ref-img/ref-img1.png";
+  }
+
+  if (safeAvatarKey.startsWith("/media/ref-img/")) {
+    return safeAvatarKey;
+  }
+
+  return `/media/ref-img/${safeAvatarKey}`;
+}
+
 function getStableRefImage(seed = "") {
   const stableRefImages = [
     "ref-img1.png",
@@ -2517,11 +2531,12 @@ function getRentARefAvatarKey(content = {}) {
 
 function renderRentARefAvatar(content = {}, extraClass = "") {
   const imageName = getRentARefAvatarKey(content);
+  const imageSrc = getRentARefImageSrc(imageName);
 
   return `
     <span class="rent-a-ref-avatar ${escapeHtml(extraClass)}">
       <img
-        src="/${escapeHtml(imageName)}"
+        src="${escapeHtml(imageSrc)}"
         alt=""
         loading="lazy"
         onerror="this.hidden = true; this.nextElementSibling.hidden = false;"
@@ -2816,7 +2831,7 @@ function renderChirpProfile(content) {
     avatarKey = "ref-img4.png";
   }
 
-  const avatarSrc = avatarKey || "ref-img1.png";
+  const avatarSrc = getRentARefImageSrc(avatarKey || "ref-img1.png");
 
   const glowFor = (value) => {
     const score = Math.max(0, Math.min(5, Number(value || 0)));
@@ -2862,7 +2877,7 @@ function renderChirpProfile(content) {
             <div class="chirp-console-ruling-avatar-wrap">
               <img
                 class="chirp-console-ruling-avatar"
-                src="/${escapeHtml(avatarSrc)}"
+                src="${escapeHtml(avatarSrc)}"
                 alt="Rent-A-Ref"
               />
             </div>
