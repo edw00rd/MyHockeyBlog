@@ -1470,7 +1470,7 @@ async function deletePost(request, env, postId) {
       `
       UPDATE posts
       SET
-        title = '[deleted by user]',
+        title = '[Deleted Post]',
         body = 'This post was deleted by the user.',
         status = 'deleted',
         comments_enabled = 0,
@@ -1485,82 +1485,14 @@ async function deletePost(request, env, postId) {
       .bind(now, safePostId)
       .run();
 
-    await env.DB.prepare(
-      `
-      DELETE FROM post_tags
-      WHERE post_id = ?
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM content_chirps
-      WHERE content_type = 'post'
-        AND content_id = ?
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM rent_a_ref_calls
-      WHERE content_type = 'post'
-        AND content_id = ?
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM rent_a_ref_rulings
-      WHERE content_type = 'post'
-        AND content_id = ?
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM content_review_participants
-      WHERE review_id IN (
-        SELECT id
-        FROM content_reviews
-        WHERE content_type = 'post'
-          AND content_id = ?
-      )
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM content_review_tokens
-      WHERE review_id IN (
-        SELECT id
-        FROM content_reviews
-        WHERE content_type = 'post'
-          AND content_id = ?
-      )
-      `
-    )
-      .bind(safePostId)
-      .run();
-
-    await env.DB.prepare(
-      `
-      DELETE FROM content_reviews
-      WHERE content_type = 'post'
-        AND content_id = ?
-      `
-    )
-      .bind(safePostId)
-      .run();
+await env.DB.prepare(
+  `
+  DELETE FROM post_tags
+  WHERE post_id = ?
+  `
+)
+  .bind(safePostId)
+  .run();
 
     return json({
       ok: true,
@@ -1606,15 +1538,6 @@ async function getComments(request, env, postId) {
       );
     }
 
-    if (post.status === "deleted") {
-      return json({
-        ok: true,
-        post_id: postId,
-        comments_enabled: false,
-        comments: []
-      });
-    }
-    
     const result = await env.DB.prepare(
       `
       SELECT
@@ -1848,7 +1771,7 @@ async function getComments(request, env, postId) {
     return json({
       ok: true,
       post_id: postId,
-      comments_enabled: Number(post.comments_enabled) === 1,
+      comments_enabled: Number(post.comments_enabled) === 1 && post.status !== "deleted",
       comments: result.results || []
     });
   } catch (error) {
