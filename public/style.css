@@ -1897,8 +1897,29 @@ textarea:focus {
 }
 
 .deleted-placeholder p {
-  margin: 0;
+  margin: 0.25rem 0 0;
   color: var(--muted);
+}
+
+.deleted-post-tombstone {
+  border-color: rgba(159, 177, 200, 0.42);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(159, 177, 200, 0.08),
+      rgba(5, 11, 20, 0.72)
+    );
+}
+
+.deleted-placeholder-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.deleted-placeholder-title-row strong {
+  margin: 0;
 }
 
 .chirp-profile-shell {
